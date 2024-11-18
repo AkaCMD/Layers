@@ -1,0 +1,10 @@
+*.exe
+*.ll
+*.obj
+*.pdb
+
+**.exp
+ols.json
+
+.vscode
+.idea

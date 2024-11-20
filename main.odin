@@ -32,12 +32,13 @@ Input :: enum {
 input: Input
 
 Entity :: struct {
-    
+    texture: rl.Texture2D,
+    position: rl.Vector2,
 }
 
 Player :: struct {
-    texture: rl.Texture2D,
-    position: rl.Vector2,
+    using entity: Entity,
+    is_flipped: bool,
 }
 
 player := Player{ position = {5, 5}, }
@@ -66,7 +67,7 @@ main :: proc() {
     }
 
     rl.SetConfigFlags({.WINDOW_RESIZABLE})
-    rl.InitWindow(SCREEN_SIZE, SCREEN_SIZE, "UWU")
+    rl.InitWindow(SCREEN_SIZE+200, SCREEN_SIZE, "UWU")
     defer rl.CloseWindow()
     rl.SetTargetFPS(100)
     game_init()
@@ -95,7 +96,12 @@ draw :: proc() {
     }
 
     // draw player
-    rl.DrawTexturePro(player.texture, rl.Rectangle{0, 0, f32(player.texture.width), f32(player.texture.height)}, rl.Rectangle{player.position.x*GRID_SIZE, player.position.y*GRID_SIZE, f32(player.texture.width), f32(player.texture.height)}, rl.Vector2(0), 0, rl.WHITE)
+    if !player.is_flipped {
+        rl.DrawTexturePro(player.texture, rl.Rectangle{0, 0, f32(player.texture.width), f32(player.texture.height)}, rl.Rectangle{player.position.x*GRID_SIZE, player.position.y*GRID_SIZE, f32(player.texture.width), f32(player.texture.height)}, rl.Vector2(0), 0, rl.WHITE)
+    }
+    else {
+        rl.DrawTexturePro(player.texture, rl.Rectangle{0, 0, -f32(player.texture.width), f32(player.texture.height)}, rl.Rectangle{player.position.x*GRID_SIZE, player.position.y*GRID_SIZE, f32(player.texture.width), f32(player.texture.height)}, rl.Vector2(0), 0, rl.WHITE)
+    }
 }
 
 get_input :: proc() {
@@ -133,10 +139,12 @@ game_update :: proc() {
         case .Left:
             if player.position.x > 0 {
                 player.position += {-1, 0}
+                player.is_flipped = true
             }
         case .Right:
             if player.position.x < GRID_COUNT-1 {
                 player.position += {1, 0}
+                player.is_flipped = false
             }
     }
 }

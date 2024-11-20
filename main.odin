@@ -1,4 +1,4 @@
-package main
+package game
 
 import rl "vendor:raylib"
 import "core:fmt"
@@ -21,11 +21,21 @@ GRID_COUNT :: 10
 
 offset := rl.Vector2{ 0, 0 }
 
+Input :: enum {
+    None,
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+input: Input
+
 Player :: struct {
     position: rl.Vector2,
 }
 
-player := Player{ {320, 320}, }
+player := Player{ {5, 5}, }
 
 main :: proc() {
     when ODIN_DEBUG {
@@ -50,13 +60,14 @@ main :: proc() {
         }
     }
 
-    rl.InitWindow(SCREEN_SIZE, SCREEN_SIZE, "LAYERS:)")
+    rl.InitWindow(SCREEN_SIZE, SCREEN_SIZE, "UWU")
     defer rl.CloseWindow()
-    rl.SetTargetFPS(60)
+    rl.SetTargetFPS(100)
 
     for !rl.WindowShouldClose() {
         rl.BeginDrawing()
         defer rl.EndDrawing()
+        game_update()
         draw()
     }
 }
@@ -74,5 +85,47 @@ draw :: proc() {
     }
 
     // draw player
-    rl.DrawRectangleV(player.position, {GRID_SIZE, GRID_SIZE}, MY_ORANGE)
+    rl.DrawRectangleV(player.position * GRID_SIZE, {GRID_SIZE, GRID_SIZE}, MY_ORANGE)
+}
+
+get_input :: proc() {
+    input = .None
+    if rl.IsKeyPressed(.UP) {
+        input = .Up
+    } 
+    else if rl.IsKeyPressed(.DOWN) {
+        input = .Down
+    }
+    else if rl.IsKeyPressed(.LEFT) {
+        input = .Left
+    }
+    else if rl.IsKeyPressed(.RIGHT) {
+        input = .Right
+    }
+}
+
+game_init :: proc() {
+    // do some init stuff
+}
+
+game_update :: proc() {
+    get_input()
+    #partial switch input {
+        case .Up:
+            if player.position.y > 0 {
+                player.position += {0, -1}
+            }
+        case .Down:
+            if player.position.y < GRID_COUNT-1 {
+                player.position += {0, 1}
+            }
+        case .Left:
+            if player.position.x > 0 {
+                player.position += {-1, 0}
+            }
+        case .Right:
+            if player.position.x < GRID_COUNT-1 {
+                player.position += {1, 0}
+            }
+    }
 }

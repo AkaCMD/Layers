@@ -16,7 +16,7 @@ MY_GREY :: rl.Color{167, 167, 158, 255}
 MY_PURPLE :: rl.Color{155, 105, 112, 255}
 
 GRID_SIZE :: 64
-SCREEN_SIZE :: 672
+SCREEN_SIZE :: 960
 GRID_COUNT :: 10
 
 offset := rl.Vector2{ 0, 0 }
@@ -31,11 +31,16 @@ Input :: enum {
 
 input: Input
 
+Entity :: struct {
+    
+}
+
 Player :: struct {
+    texture: rl.Texture2D,
     position: rl.Vector2,
 }
 
-player := Player{ {5, 5}, }
+player := Player{ position = {5, 5}, }
 
 main :: proc() {
     when ODIN_DEBUG {
@@ -60,12 +65,17 @@ main :: proc() {
         }
     }
 
+    rl.SetConfigFlags({.WINDOW_RESIZABLE})
     rl.InitWindow(SCREEN_SIZE, SCREEN_SIZE, "UWU")
     defer rl.CloseWindow()
     rl.SetTargetFPS(100)
+    game_init()
+
+    camera: rl.Camera2D
+    camera.zoom = 1.5
 
     for !rl.WindowShouldClose() {
-        rl.BeginDrawing()
+        rl.BeginMode2D(camera)
         defer rl.EndDrawing()
         game_update()
         draw()
@@ -77,15 +87,15 @@ draw :: proc() {
 
     // draw grid lines
     for i := 0; i < GRID_COUNT+1; i += 1 {
-        rl.DrawLineV(rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, offset.y/2}, rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, GRID_COUNT*GRID_SIZE - offset.y/2}, MY_GREY)
+        rl.DrawLineEx(rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, offset.y/2}, rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, GRID_COUNT*GRID_SIZE - offset.y/2}, 2, MY_GREY)
     }
 
     for i := 0; i < GRID_COUNT+1; i += 1 {
-        rl.DrawLineV(rl.Vector2{offset.x/2, f32(GRID_SIZE*i)}, rl.Vector2{GRID_COUNT*GRID_SIZE+offset.x/2, f32(GRID_SIZE*i)}, MY_GREY)
+        rl.DrawLineEx(rl.Vector2{offset.x/2, f32(GRID_SIZE*i)}, rl.Vector2{GRID_COUNT*GRID_SIZE+offset.x/2, f32(GRID_SIZE*i)}, 2, MY_GREY)
     }
 
     // draw player
-    rl.DrawRectangleV(player.position * GRID_SIZE, {GRID_SIZE, GRID_SIZE}, MY_ORANGE)
+    rl.DrawTexturePro(player.texture, rl.Rectangle{0, 0, f32(player.texture.width), f32(player.texture.height)}, rl.Rectangle{player.position.x*GRID_SIZE, player.position.y*GRID_SIZE, f32(player.texture.width), f32(player.texture.height)}, rl.Vector2(0), 0, rl.WHITE)
 }
 
 get_input :: proc() {
@@ -106,6 +116,7 @@ get_input :: proc() {
 
 game_init :: proc() {
     // do some init stuff
+    player.texture = rl.LoadTexture("assets/textures/duck.png")
 }
 
 game_update :: proc() {

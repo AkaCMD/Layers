@@ -21,6 +21,8 @@ GRID_COUNT :: 10
 
 MAX_ENTITIES_COUNT :: 300
 
+HALF_ALPHA_VALUE :: u8(128)
+
 offset := rl.Vector2{0, 0}
 
 Entity_Type :: enum {
@@ -177,11 +179,15 @@ draw :: proc() {
     }
 
     // draw level
-    for entity in level.layer_1.entities {
-        rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.WHITE)
+    if level.layer_1.is_visible {
+        for entity in level.layer_1.entities {
+            rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.Color{255, 255, 255, HALF_ALPHA_VALUE})
+        }
     }
-    for entity in level.layer_2.entities {
-        rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.WHITE)
+    if level.layer_2.is_visible {
+        for entity in level.layer_2.entities {
+            rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.Color{255, 255, 255, HALF_ALPHA_VALUE})
+        }
     }
 
     // draw player
@@ -221,6 +227,11 @@ game_init :: proc() {
     setup_cargo(&cargo)
     append(&level.layer_1.entities, cargo)
 
+    cargo_1 := Entity{}
+    cargo_1.position = {4, 4}
+    setup_cargo(&cargo_1)
+    append(&level.layer_2.entities, cargo_1)
+
     wall := Entity{}
     wall.position = {3, 3}
     setup_wall(&wall)
@@ -240,6 +251,14 @@ game_update :: proc() {
         case .Right:
             move(&player, {1, 0})
             player.is_flipped = false
+    }
+
+    // test
+    if rl.IsKeyPressed(.Q) {
+        level.layer_1.is_visible = !level.layer_1.is_visible
+    }
+    if rl.IsKeyPressed(.E) {
+        level.layer_2.is_visible = !level.layer_2.is_visible
     }
 }
 
@@ -265,7 +284,7 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
             return false
         }
     }
-    else {
+    else if entity_in_l1 == nil && entity_in_l2 != nil {
         if entity_in_l2.type == .Cargo {
             if move(entity_in_l2, dir) {
                 en.position = target_pos
@@ -275,6 +294,24 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
             return false
         }
     }
+    else {
+        if entity_in_l2.type == .Cargo && entity_in_l1.type == .Cargo {
+            first_cargo_target_pos := target_pos + dir
+            first_next_entity_in_l1, first_next_entity_in_l2 := find_entities_in_position(first_cargo_target_pos)
+
+            second_cargo_target_pos := target_pos + dir
+            second_next_entity_in_l1, second_next_entity_in_l2 := find_entities_in_position(second_cargo_target_pos)
+
+            if first_next_entity_in_l1 == nil && first_next_entity_in_l2 == nil && 
+               second_next_entity_in_l1 == nil && second_next_entity_in_l2 == nil {
+                entity_in_l1.position = first_cargo_target_pos
+                entity_in_l2.position = second_cargo_target_pos
+                en.position = target_pos
+                return true
+            }
+        }
+        return false
+    }
     return false
 }
 
@@ -282,17 +319,21 @@ find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity){
     entity_in_l1: ^Entity = nil
     entity_in_l2: ^Entity = nil
 
-    for &en in level.layer_1.entities {
-        if en.position == pos {
-            entity_in_l1 = &en
-            break
+    if level.layer_1.is_visible == true {
+        for &en in level.layer_1.entities {
+            if en.position == pos {
+                entity_in_l1 = &en
+                break
+            }
         }
     }
 
-    for &en in level.layer_2.entities {
-        if en.position == pos {
-            entity_in_l2 = &en
-            break
+    if level.layer_2.is_visible == true {
+        for &en in level.layer_2.entities {
+            if en.position == pos {
+                entity_in_l2 = &en
+                break
+            }
         }
     }
 

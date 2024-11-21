@@ -20,7 +20,7 @@ SCREEN_SIZE :: 960
 GRID_COUNT :: 10
 MAX_ENTITIES_COUNT :: 300
 
-HALF_ALPHA_VALUE :: u8(128)
+HALF_ALPHA_VALUE :: u8(150)
 
 offset := rl.Vector2{0, 0}
 mouse_position : rl.Vector2
@@ -146,6 +146,20 @@ setup_wall :: proc(en: ^Entity) {
     en.priority = 3
 }
 
+setup_flag :: proc(en: ^Entity) {
+    en.texture_id = .TEXTURE_flag_no
+    en.type = .Flag
+    en.priority = 2
+    en.can_overlap = true
+}
+
+setup_target :: proc(en: ^Entity) {
+    en.texture_id = .TEXTURE_target
+    en.type = .Target
+    en.priority = 2
+    en.can_overlap = true
+}
+
 main :: proc() {
     when ODIN_DEBUG {
         track: mem.Tracking_Allocator
@@ -258,6 +272,9 @@ game_init :: proc() {
     textures[.TEXTURE_player] = rl.LoadTexture("assets/textures/duck.png")
     textures[.TEXTURE_cargo] = rl.LoadTexture("assets/textures/cargo.png")
     textures[.TEXTURE_wall] = rl.LoadTexture("assets/textures/wall.png")
+    textures[.TEXTURE_flag_ok] = rl.LoadTexture("assets/textures/flag_ok.png")
+    textures[.TEXTURE_flag_no] = rl.LoadTexture("assets/textures/flag_no.png")
+    textures[.TEXTURE_target] = rl.LoadTexture("assets/textures/target.png")
 
     textures[.TEXTURE_visible] = rl.LoadTexture("assets/textures/visible.png")
     textures[.TEXTURE_invisible] = rl.LoadTexture("assets/textures/invisible.png")
@@ -277,6 +294,16 @@ game_init :: proc() {
     wall.position = {3, 3}
     setup_wall(&wall)
     append(&level.layer_1.entities, wall)
+
+    flag := Entity{}
+    flag.position = {3, 2}
+    setup_flag(&flag)
+    append(&level.layer_2.entities, flag)
+
+    target := Entity{}
+    target.position = {2, 2}
+    setup_target(&target)
+    append(&level.layer_2.entities, target)
 }
 
 game_update :: proc() {
@@ -320,11 +347,11 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
         return false // Out of bounds, do nothing
     }
 
-    if entity_in_l1 == nil && entity_in_l2 == nil {
+    if ((entity_in_l1 == nil || entity_in_l1.can_overlap) && (entity_in_l2 == nil || entity_in_l2.can_overlap)) {
         en.position = target_pos
         return true
     } 
-    else if entity_in_l1 != nil && entity_in_l2 == nil {
+    else if entity_in_l1 != nil && (entity_in_l2 == nil || entity_in_l2.can_overlap) {
         if entity_in_l1.type == .Cargo {
             if move(entity_in_l1, dir) {
                 en.position = target_pos
@@ -334,7 +361,7 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
             return false
         }
     }
-    else if entity_in_l1 == nil && entity_in_l2 != nil {
+    else if (entity_in_l1 == nil || entity_in_l1.can_overlap) && entity_in_l2 != nil {
         if entity_in_l2.type == .Cargo {
             if move(entity_in_l2, dir) {
                 en.position = target_pos
@@ -345,22 +372,15 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
         }
     }
     else {
+        // TODO: should overlapped cargos be pushed together?
         if entity_in_l2.type == .Cargo && entity_in_l1.type == .Cargo {
-            first_cargo_target_pos := target_pos + dir
-            first_next_entity_in_l1, first_next_entity_in_l2 := find_entities_in_position(first_cargo_target_pos)
-
-            second_cargo_target_pos := target_pos + dir
-            second_next_entity_in_l1, second_next_entity_in_l2 := find_entities_in_position(second_cargo_target_pos)
-
-            if first_next_entity_in_l1 == nil && first_next_entity_in_l2 == nil && 
-               second_next_entity_in_l1 == nil && second_next_entity_in_l2 == nil {
-                entity_in_l1.position = first_cargo_target_pos
-                entity_in_l2.position = second_cargo_target_pos
+            if move(entity_in_l2, dir) && move(entity_in_l1, dir) {
                 en.position = target_pos
                 return true
             }
+        } else{
+            return false
         }
-        return false
     }
     return false
 }

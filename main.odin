@@ -25,6 +25,8 @@ HALF_ALPHA_VALUE :: u8(128)
 
 offset := rl.Vector2{0, 0}
 
+font : rl.Font
+
 Entity_Type :: enum {
     Player,
     Cargo,
@@ -201,22 +203,23 @@ draw :: proc() {
 
 get_input :: proc() {
     input = .None
-    if rl.IsKeyPressed(.UP) {
+    if rl.IsKeyPressed(.UP) || rl.IsKeyPressed(.W) {
         input = .Up
     } 
-    else if rl.IsKeyPressed(.DOWN) {
+    else if rl.IsKeyPressed(.DOWN) || rl.IsKeyPressed(.S) {
         input = .Down
     }
-    else if rl.IsKeyPressed(.LEFT) {
+    else if rl.IsKeyPressed(.LEFT) || rl.IsKeyPressed(.A){
         input = .Left
     }
-    else if rl.IsKeyPressed(.RIGHT) {
+    else if rl.IsKeyPressed(.RIGHT) || rl.IsKeyPressed(.D) {
         input = .Right
     }
 }
 
 game_init :: proc() {
     // load assets
+    font = rl.LoadFont("assets/fonts/m6x11.ttf")
     textures[.TEXTURE_player] = rl.LoadTexture("assets/textures/duck.png")
     textures[.TEXTURE_cargo] = rl.LoadTexture("assets/textures/cargo.png")
     textures[.TEXTURE_wall] = rl.LoadTexture("assets/textures/wall.png")
@@ -254,10 +257,10 @@ game_update :: proc() {
     }
 
     // test
-    if rl.IsKeyPressed(.Q) {
+    if rl.IsKeyPressed(.O) {
         level.layer_1.is_visible = !level.layer_1.is_visible
     }
-    if rl.IsKeyPressed(.E) {
+    if rl.IsKeyPressed(.P) {
         level.layer_2.is_visible = !level.layer_2.is_visible
     }
 }

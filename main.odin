@@ -18,19 +18,23 @@ MY_PURPLE :: rl.Color{155, 105, 112, 255}
 GRID_SIZE :: 64
 SCREEN_SIZE :: 960
 GRID_COUNT :: 10
-
 MAX_ENTITIES_COUNT :: 300
 
 HALF_ALPHA_VALUE :: u8(128)
 
 offset := rl.Vector2{0, 0}
+mouse_position : rl.Vector2
 
 font : rl.Font
+
+is_ok: bool
 
 Entity_Type :: enum {
     Player,
     Cargo,
     Wall,
+    Target,
+    Flag,
 }
 
 TextureID :: enum {
@@ -38,6 +42,11 @@ TextureID :: enum {
     TEXTURE_player,
     TEXTURE_cargo,
     TEXTURE_wall,
+    TEXTURE_target,
+    TEXTURE_flag_ok,
+    TEXTURE_flag_no,
+    TEXTURE_visible,
+    TEXTURE_invisible,
 }
 
 textures: [TextureID]rl.Texture2D
@@ -57,6 +66,15 @@ get_texture_id_from_type :: proc(type: Entity_Type) -> TextureID {
             return .TEXTURE_cargo
         case .Wall:
             return .TEXTURE_wall
+        case .Target:
+            return .TEXTURE_target
+        case .Flag:
+            if is_ok {
+                return .TEXTURE_flag_ok
+            }
+            else {
+                return .TEXTURE_flag_no
+            }
         case:
             return .TEXTURE_none
     }
@@ -199,6 +217,22 @@ draw :: proc() {
     else {
         rl.DrawTexturePro(textures[player.texture_id], rl.Rectangle{0, 0, -f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Rectangle{f32(player.position.x*GRID_SIZE), f32(player.position.y*GRID_SIZE), f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Vector2(0), 0, rl.WHITE)
     }
+
+    // draw text and ui
+    rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 20, 1.2, MY_BLACK)
+    rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 40}, 20, 1.2, MY_BLACK)
+    if level.layer_1.is_visible {
+        rl.DrawTexture(textures[.TEXTURE_visible], 630, -13, rl.WHITE)
+    }
+    else {
+        rl.DrawTexture(textures[.TEXTURE_invisible], 630, -13, rl.WHITE)
+    }
+    if level.layer_2.is_visible {
+        rl.DrawTexture(textures[.TEXTURE_visible], 630, -13+30, rl.WHITE)
+    }
+    else {
+        rl.DrawTexture(textures[.TEXTURE_invisible], 630, -13+30, rl.WHITE)
+    }
 }
 
 get_input :: proc() {
@@ -215,6 +249,7 @@ get_input :: proc() {
     else if rl.IsKeyPressed(.RIGHT) || rl.IsKeyPressed(.D) {
         input = .Right
     }
+    mouse_position = rl.GetMousePosition()
 }
 
 game_init :: proc() {
@@ -223,6 +258,9 @@ game_init :: proc() {
     textures[.TEXTURE_player] = rl.LoadTexture("assets/textures/duck.png")
     textures[.TEXTURE_cargo] = rl.LoadTexture("assets/textures/cargo.png")
     textures[.TEXTURE_wall] = rl.LoadTexture("assets/textures/wall.png")
+
+    textures[.TEXTURE_visible] = rl.LoadTexture("assets/textures/visible.png")
+    textures[.TEXTURE_invisible] = rl.LoadTexture("assets/textures/invisible.png")
 
     setup_player(&player)
     cargo := Entity{}
@@ -243,6 +281,7 @@ game_init :: proc() {
 
 game_update :: proc() {
     get_input()
+    fmt.println("mouse pos: ", mouse_position)
     #partial switch input {
         case .Up:
             move(&player, {0, -1})
@@ -256,12 +295,20 @@ game_update :: proc() {
             player.is_flipped = false
     }
 
-    // test
-    if rl.IsKeyPressed(.O) {
-        level.layer_1.is_visible = !level.layer_1.is_visible
-    }
-    if rl.IsKeyPressed(.P) {
-        level.layer_2.is_visible = !level.layer_2.is_visible
+    // toggle layer's visibility
+    if rl.IsMouseButtonPressed(.LEFT) {
+        if mouse_position.x > 960 && mouse_position.x < 960+64 && mouse_position.y > 0 && mouse_position.y < 40 {
+            level.layer_1.is_visible = !level.layer_1.is_visible
+            if !level.layer_1.is_visible && !level.layer_2.is_visible {
+                level.layer_2.is_visible = true
+            } 
+        }
+        if mouse_position.x > 960 && mouse_position.x < 960+64 && mouse_position.y > 40 && mouse_position.y < 40+40 {
+            level.layer_2.is_visible = !level.layer_2.is_visible
+            if !level.layer_1.is_visible && !level.layer_2.is_visible {
+                level.layer_1.is_visible = true
+            }
+        }
     }
 }
 

@@ -58,11 +58,27 @@ get_texture_id_from_type :: proc(type: Entity_Type) -> TextureID {
     }
 }
 
-Level :: struct {
-    layer_1_entities: [dynamic]Entity,
-    layer_2_entities: [dynamic]Entity,
+Layer :: struct {
+    entities: [dynamic]Entity,
+    is_visible: bool,
+    order: int,
 }
-level := Level{}
+
+Level :: struct {
+    layer_1: Layer,
+    layer_2: Layer,
+}
+
+level := Level {
+    layer_1 = Layer {
+        is_visible = true,
+        order = 1,
+    },
+    layer_2 = Layer {
+        is_visible = true,
+        order = 2,
+    },
+}
 
 Input :: enum {
     None,
@@ -161,10 +177,10 @@ draw :: proc() {
     }
 
     // draw level
-    for entity in level.layer_1_entities {
+    for entity in level.layer_1.entities {
         rl.DrawTextureV(textures[entity.texture_id], entity.position*GRID_SIZE, rl.WHITE)
     }
-    for entity in level.layer_2_entities {
+    for entity in level.layer_2.entities {
         rl.DrawTextureV(textures[entity.texture_id], entity.position*GRID_SIZE, rl.WHITE)
     }
 
@@ -203,12 +219,12 @@ game_init :: proc() {
     cargo := Entity{}
     cargo.position = rl.Vector2{4, 4}
     setup_cargo(&cargo)
-    append(&level.layer_1_entities, cargo)
+    append(&level.layer_1.entities, cargo)
 
     wall := Entity{}
     wall.position = rl.Vector2{3, 3}
     setup_wall(&wall)
-    append(&level.layer_1_entities, wall)
+    append(&level.layer_2.entities, wall)
 }
 
 game_update :: proc() {

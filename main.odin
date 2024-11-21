@@ -21,7 +21,7 @@ GRID_COUNT :: 10
 
 MAX_ENTITIES_COUNT :: 300
 
-offset := rl.Vector2{ 0, 0 }
+offset := rl.Vector2{0, 0}
 
 Entity_Type :: enum {
     Player,
@@ -93,7 +93,7 @@ input: Input
 Entity :: struct {
     type: Entity_Type,
     texture_id: TextureID,
-    position: rl.Vector2,
+    position: [2]int,
     layer: int, // 1 or 2
     priority: int, // from 0
     can_overlap: bool,
@@ -169,27 +169,27 @@ draw :: proc() {
 
     // draw grid lines
     for i := 0; i < GRID_COUNT+1; i += 1 {
-        rl.DrawLineEx(rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, offset.y/2}, rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, GRID_COUNT*GRID_SIZE - offset.y/2}, 2, MY_GREY)
+        rl.DrawLineEx(rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, offset.y/2}, rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, GRID_COUNT*GRID_SIZE - offset.y/2}, 2, rl.Color{MY_GREY.r, MY_GREY.g, MY_GREY.b, 80})
     }
 
     for i := 0; i < GRID_COUNT+1; i += 1 {
-        rl.DrawLineEx(rl.Vector2{offset.x/2, f32(GRID_SIZE*i)}, rl.Vector2{GRID_COUNT*GRID_SIZE+offset.x/2, f32(GRID_SIZE*i)}, 2, MY_GREY)
+        rl.DrawLineEx(rl.Vector2{offset.x/2, f32(GRID_SIZE*i)}, rl.Vector2{GRID_COUNT*GRID_SIZE+offset.x/2, f32(GRID_SIZE*i)}, 2, rl.Color{MY_GREY.r, MY_GREY.g, MY_GREY.b, 80})
     }
 
     // draw level
     for entity in level.layer_1.entities {
-        rl.DrawTextureV(textures[entity.texture_id], entity.position*GRID_SIZE, rl.WHITE)
+        rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.WHITE)
     }
     for entity in level.layer_2.entities {
-        rl.DrawTextureV(textures[entity.texture_id], entity.position*GRID_SIZE, rl.WHITE)
+        rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.WHITE)
     }
 
     // draw player
     if !player.is_flipped {
-        rl.DrawTexturePro(textures[player.texture_id], rl.Rectangle{0, 0, f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Rectangle{player.position.x*GRID_SIZE, player.position.y*GRID_SIZE, f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Vector2(0), 0, rl.WHITE)
+        rl.DrawTexturePro(textures[player.texture_id], rl.Rectangle{0, 0, f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Rectangle{f32(player.position.x*GRID_SIZE), f32(player.position.y*GRID_SIZE), f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Vector2(0), 0, rl.WHITE)
     }
     else {
-        rl.DrawTexturePro(textures[player.texture_id], rl.Rectangle{0, 0, -f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Rectangle{player.position.x*GRID_SIZE, player.position.y*GRID_SIZE, f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Vector2(0), 0, rl.WHITE)
+        rl.DrawTexturePro(textures[player.texture_id], rl.Rectangle{0, 0, -f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Rectangle{f32(player.position.x*GRID_SIZE), f32(player.position.y*GRID_SIZE), f32(textures[player.texture_id].width), f32(textures[player.texture_id].height)}, rl.Vector2(0), 0, rl.WHITE)
     }
 }
 
@@ -217,36 +217,84 @@ game_init :: proc() {
 
     setup_player(&player)
     cargo := Entity{}
-    cargo.position = rl.Vector2{4, 4}
+    cargo.position = {4, 4}
     setup_cargo(&cargo)
     append(&level.layer_1.entities, cargo)
 
     wall := Entity{}
-    wall.position = rl.Vector2{3, 3}
+    wall.position = {3, 3}
     setup_wall(&wall)
-    append(&level.layer_2.entities, wall)
+    append(&level.layer_1.entities, wall)
 }
 
 game_update :: proc() {
     get_input()
     #partial switch input {
         case .Up:
-            if player.position.y > 0 {
-                player.position += {0, -1}
-            }
+            move(&player, {0, -1})
         case .Down:
-            if player.position.y < GRID_COUNT-1 {
-                player.position += {0, 1}
-            }
+            move(&player, {0, 1})
         case .Left:
-            if player.position.x > 0 {
-                player.position += {-1, 0}
-                player.is_flipped = true
-            }
+            move(&player, {-1, 0})
+            player.is_flipped = true
         case .Right:
-            if player.position.x < GRID_COUNT-1 {
-                player.position += {1, 0}
-                player.is_flipped = false
-            }
+            move(&player, {1, 0})
+            player.is_flipped = false
     }
+}
+
+move :: proc(en: ^Entity, dir: [2]int) -> bool {
+    target_pos := en.position + dir
+    entity_in_l1, entity_in_l2 := find_entities_in_position(target_pos)
+
+    if target_pos.x < 0 || target_pos.x >= GRID_COUNT || target_pos.y < 0 || target_pos.y >= GRID_COUNT {
+        return false // Out of bounds, do nothing
+    }
+
+    if entity_in_l1 == nil && entity_in_l2 == nil {
+        en.position = target_pos
+        return true
+    } 
+    else if entity_in_l1 != nil && entity_in_l2 == nil {
+        if entity_in_l1.type == .Cargo {
+            if move(entity_in_l1, dir) {
+                en.position = target_pos
+                return true
+            }
+        } else {
+            return false
+        }
+    }
+    else {
+        if entity_in_l2.type == .Cargo {
+            if move(entity_in_l2, dir) {
+                en.position = target_pos
+                return true
+            }
+        } else {
+            return false
+        }
+    }
+    return false
+}
+
+find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity){
+    entity_in_l1: ^Entity = nil
+    entity_in_l2: ^Entity = nil
+
+    for &en in level.layer_1.entities {
+        if en.position == pos {
+            entity_in_l1 = &en
+            break
+        }
+    }
+
+    for &en in level.layer_2.entities {
+        if en.position == pos {
+            entity_in_l2 = &en
+            break
+        }
+    }
+
+    return entity_in_l1, entity_in_l2
 }

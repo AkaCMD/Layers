@@ -25,7 +25,6 @@ HALF_ALPHA_VALUE :: u8(150)
 offset := rl.Vector2{0, 0}
 mouse_position : rl.Vector2
 targets : [dynamic]Entity
-flag : ^Entity
 
 font : rl.Font
 
@@ -153,7 +152,6 @@ setup_flag :: proc(en: ^Entity) {
     en.type = .Flag
     en.priority = 2
     en.can_overlap = true
-    flag = en
 }
 
 setup_target :: proc(en: ^Entity) {
@@ -219,12 +217,28 @@ draw :: proc() {
 
     // draw level
     if level.layer_1.is_visible {
-        for entity in level.layer_1.entities {
+        for &entity in level.layer_1.entities {
+            if entity.type == .Flag {
+                if is_ok {
+                    entity.texture_id = .TEXTURE_flag_ok
+                }
+                else {
+                    entity.texture_id = .TEXTURE_flag_no
+                }
+            }
             rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.Color{255, 255, 255, HALF_ALPHA_VALUE})
         }
     }
     if level.layer_2.is_visible {
-        for entity in level.layer_2.entities {
+        for &entity in level.layer_2.entities {
+            if entity.type == .Flag {
+                if is_ok {
+                    entity.texture_id = .TEXTURE_flag_ok
+                }
+                else {
+                    entity.texture_id = .TEXTURE_flag_no
+                }
+            }
             rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.Color{255, 255, 255, HALF_ALPHA_VALUE})
         }
     }
@@ -419,11 +433,9 @@ check_win_condition :: proc() -> bool {
     for target in targets {
         en_1, en_2 := find_entities_in_position(target.position)
         if en_1 == nil && en_2 == nil {
-            flag.texture_id = .TEXTURE_flag_no
             return false
         }
     }
     fmt.println("win")
-    flag.texture_id = .TEXTURE_flag_ok
     return true
 }

@@ -31,11 +31,11 @@ font : rl.Font
 is_ok: bool
 
 Entity_Type :: enum {
-    Player,
-    Cargo,
-    Wall,
-    Target,
-    Flag,
+    Player = '@',
+    Cargo = 'C',
+    Wall = '#',
+    Target = '*',
+    Flag = '>',
 }
 
 TextureID :: enum {
@@ -87,6 +87,15 @@ Layer :: struct {
     order: int,
 }
 
+get_layer_by_num :: proc(num: int) -> Layer {
+    if num == 1 {
+        return level.layer_1
+    }
+    else {
+        return level.layer_2
+    }
+}
+
 Level :: struct {
     layer_1: Layer,
     layer_2: Layer,
@@ -131,7 +140,7 @@ player := Player{}
 setup_player :: proc(en: ^Entity) {
     en.texture_id = .TEXTURE_player
     en.type = .Player
-    en.position = {5, 5}
+    en.position = {5, 6}
     en.priority = 3
 }
 
@@ -300,29 +309,70 @@ game_init :: proc() {
 
     setup_player(&player)
     cargo := Entity{}
-    cargo.position = {4, 4}
+    cargo.position = {6, 6}
+    cargo.layer = 2
     setup_cargo(&cargo)
-    append(&level.layer_1.entities, cargo)
+    append(&level.layer_2.entities, cargo)
 
-    cargo_1 := Entity{}
-    cargo_1.position = {4, 4}
-    setup_cargo(&cargo_1)
-    append(&level.layer_2.entities, cargo_1)
+    wall_1 := Entity{}
+    wall_1.position = {3, 3}
+    wall_1.layer = 1
+    setup_wall(&wall_1)
+    append(&level.layer_1.entities, wall_1)
 
-    wall := Entity{}
-    wall.position = {3, 3}
-    setup_wall(&wall)
-    append(&level.layer_1.entities, wall)
+    wall_2 := Entity{}
+    wall_2.position = {4, 3}
+    wall_2.layer = 1
+    setup_wall(&wall_2)
+    append(&level.layer_1.entities, wall_2)
+
+    wall_3 := Entity{}
+    wall_3.position = {5, 3}
+    wall_3.layer = 1
+    setup_wall(&wall_3)
+    append(&level.layer_1.entities, wall_3)
+
+    wall_4 := Entity{}
+    wall_4.position = {3, 4}
+    wall_4.layer = 1
+    setup_wall(&wall_4)
+    append(&level.layer_1.entities, wall_4)
+
+    wall_5 := Entity{}
+    wall_5.position = {3, 5}
+    wall_5.layer = 1
+    setup_wall(&wall_5)
+    append(&level.layer_1.entities, wall_5)
+
+    wall_6 := Entity{}
+    wall_6.position = {4, 5}
+    wall_6.layer = 1
+    setup_wall(&wall_6)
+    append(&level.layer_1.entities, wall_6)
+
+    wall_7 := Entity{}
+    wall_7.position = {5, 5}
+    wall_7.layer = 1
+    setup_wall(&wall_7)
+    append(&level.layer_1.entities, wall_7)
+
+    wall_8 := Entity{}
+    wall_8.position = {5, 4}
+    wall_8.layer = 1
+    setup_wall(&wall_8)
+    append(&level.layer_1.entities, wall_8)
 
     flag := Entity{}
     flag.position = {3, 2}
+    flag.layer = 2
     setup_flag(&flag)
     append(&level.layer_2.entities, flag)
 
     target := Entity{}
-    target.position = {2, 2}
+    target.position = {4, 4}
+    target.layer = 1
     setup_target(&target)
-    append(&level.layer_2.entities, target)
+    append(&level.layer_1.entities, target)
 }
 
 game_update :: proc() {
@@ -431,6 +481,9 @@ find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity){
 
 check_win_condition :: proc() -> bool {
     for target in targets {
+        if get_layer_by_num(target.layer).is_visible == false {
+            return false
+        }
         en_1, en_2 := find_entities_in_position(target.position)
         if en_1 == nil && en_2 == nil {
             return false
@@ -438,4 +491,8 @@ check_win_condition :: proc() -> bool {
     }
     fmt.println("win")
     return true
+}
+
+load_level_from_txt :: proc(index: int) {
+
 }

@@ -24,6 +24,8 @@ HALF_ALPHA_VALUE :: u8(150)
 
 offset := rl.Vector2{0, 0}
 mouse_position : rl.Vector2
+targets : [dynamic]Entity
+flag : ^Entity
 
 font : rl.Font
 
@@ -151,6 +153,7 @@ setup_flag :: proc(en: ^Entity) {
     en.type = .Flag
     en.priority = 2
     en.can_overlap = true
+    flag = en
 }
 
 setup_target :: proc(en: ^Entity) {
@@ -158,6 +161,7 @@ setup_target :: proc(en: ^Entity) {
     en.type = .Target
     en.priority = 2
     en.can_overlap = true
+    append(&targets, en^)
 }
 
 main :: proc() {
@@ -196,6 +200,7 @@ main :: proc() {
         rl.BeginMode2D(camera)
         defer rl.EndDrawing()
         game_update()
+        is_ok = check_win_condition()
         draw()
     }
 }
@@ -308,7 +313,7 @@ game_init :: proc() {
 
 game_update :: proc() {
     get_input()
-    fmt.println("mouse pos: ", mouse_position)
+    // fmt.println("mouse pos: ", mouse_position)
     #partial switch input {
         case .Up:
             move(&player, {0, -1})
@@ -391,7 +396,7 @@ find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity){
 
     if level.layer_1.is_visible == true {
         for &en in level.layer_1.entities {
-            if en.position == pos {
+            if en.position == pos && !en.can_overlap {
                 entity_in_l1 = &en
                 break
             }
@@ -400,7 +405,7 @@ find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity){
 
     if level.layer_2.is_visible == true {
         for &en in level.layer_2.entities {
-            if en.position == pos {
+            if en.position == pos && !en.can_overlap {
                 entity_in_l2 = &en
                 break
             }
@@ -408,4 +413,17 @@ find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity){
     }
 
     return entity_in_l1, entity_in_l2
+}
+
+check_win_condition :: proc() -> bool {
+    for target in targets {
+        en_1, en_2 := find_entities_in_position(target.position)
+        if en_1 == nil && en_2 == nil {
+            flag.texture_id = .TEXTURE_flag_no
+            return false
+        }
+    }
+    fmt.println("win")
+    flag.texture_id = .TEXTURE_flag_ok
+    return true
 }

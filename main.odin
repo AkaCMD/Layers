@@ -3,6 +3,8 @@ package game
 import rl "vendor:raylib"
 import "core:fmt"
 import "core:mem"
+import "core:strings"
+import "core:os"
 
 // color palettes
 MY_YELLOW_BROWN :: rl.Color{221, 169, 99, 255}
@@ -202,6 +204,7 @@ main :: proc() {
 
     camera: rl.Camera2D
     camera.zoom = 1.5
+    load_level_from_txt(1)
 
     for !rl.WindowShouldClose() {
         rl.BeginMode2D(camera)
@@ -493,6 +496,17 @@ check_win_condition :: proc() -> bool {
     return true
 }
 
-load_level_from_txt :: proc(index: int) {
 
+load_level_from_txt :: proc(index: int) {
+    builder := strings.builder_make()
+
+    path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
+    l1, _ := os.read_entire_file_from_filename(path1)
+    fmt.println(string(l1))
+
+    strings.builder_reset(&builder)
+
+    path2 := fmt.sbprintf(&builder, "assets/levels/%d-l2.txt", index)
+    l2, _ := os.read_entire_file_from_filename(path2)
+    fmt.println(string(l2))
 }

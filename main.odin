@@ -32,7 +32,7 @@ font : rl.Font
 
 is_ok: bool
 
-Entity_Type :: enum {
+Entity_Type :: enum u8 {
     Player = '@',
     Cargo = 'C',
     Wall = '#',
@@ -502,11 +502,34 @@ load_level_from_txt :: proc(index: int) {
 
     path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
     l1, _ := os.read_entire_file_from_filename(path1)
-    fmt.println(string(l1))
+    from_txt_to_level(1, l1)
 
     strings.builder_reset(&builder)
 
     path2 := fmt.sbprintf(&builder, "assets/levels/%d-l2.txt", index)
     l2, _ := os.read_entire_file_from_filename(path2)
-    fmt.println(string(l2))
+    from_txt_to_level(2, l2)
+}
+
+from_txt_to_level :: proc(layer_index: int, content: []byte) {
+    height := 0
+    for char, i in content {
+        en := new(Entity)
+        en.position = {i, height}
+        en.layer = layer_index
+        switch char {
+            case '@':
+                setup_player(en)
+            case 'C':
+                setup_cargo(en)
+            case '#':
+                setup_wall(en)
+            case '*':
+                setup_target(en)
+            case '>':
+                setup_flag(en)
+            case '\n':
+                height += 1
+        }
+    }
 }

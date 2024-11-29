@@ -32,6 +32,7 @@ targets : [dynamic]Entity
 font : rl.Font
 
 is_ok: bool
+current_level_index: int
 
 Entity_Type :: enum u8 {
     Player = '@',
@@ -211,7 +212,6 @@ main :: proc() {
 
     camera: rl.Camera2D
     camera.zoom = 1.5
-    load_level_from_txt(1)
 
     for !rl.WindowShouldClose() {
         rl.BeginMode2D(camera)
@@ -318,71 +318,9 @@ game_init :: proc() {
     textures[.TEXTURE_invisible] = rl.LoadTexture("assets/textures/invisible.png")
 
     setup_player(&player)
-    cargo := Entity{}
-    cargo.position = {6, 6}
-    cargo.layer = 2
-    setup_cargo(&cargo)
-    append(&level.layer_2.entities, cargo)
-
-    wall_1 := Entity{}
-    wall_1.position = {3, 3}
-    wall_1.layer = 1
-    setup_wall(&wall_1)
-    append(&level.layer_1.entities, wall_1)
-
-    wall_2 := Entity{}
-    wall_2.position = {4, 3}
-    wall_2.layer = 1
-    setup_wall(&wall_2)
-    append(&level.layer_1.entities, wall_2)
-
-    wall_3 := Entity{}
-    wall_3.position = {5, 3}
-    wall_3.layer = 1
-    setup_wall(&wall_3)
-    append(&level.layer_1.entities, wall_3)
-
-    wall_4 := Entity{}
-    wall_4.position = {3, 4}
-    wall_4.layer = 1
-    setup_wall(&wall_4)
-    append(&level.layer_1.entities, wall_4)
-
-    wall_5 := Entity{}
-    wall_5.position = {3, 5}
-    wall_5.layer = 1
-    setup_wall(&wall_5)
-    append(&level.layer_1.entities, wall_5)
-
-    wall_6 := Entity{}
-    wall_6.position = {4, 5}
-    wall_6.layer = 1
-    setup_wall(&wall_6)
-    append(&level.layer_1.entities, wall_6)
-
-    wall_7 := Entity{}
-    wall_7.position = {5, 5}
-    wall_7.layer = 1
-    setup_wall(&wall_7)
-    append(&level.layer_1.entities, wall_7)
-
-    wall_8 := Entity{}
-    wall_8.position = {5, 4}
-    wall_8.layer = 1
-    setup_wall(&wall_8)
-    append(&level.layer_1.entities, wall_8)
-
-    flag := Entity{}
-    flag.position = {3, 2}
-    flag.layer = 2
-    setup_flag(&flag)
-    append(&level.layer_2.entities, flag)
-
-    target := Entity{}
-    target.position = {4, 4}
-    target.layer = 1
-    setup_target(&target)
-    append(&level.layer_1.entities, target)
+    if ok := load_level_from_txt(1); ok {
+        current_level_index = 1
+    }
 }
 
 game_update :: proc() {
@@ -499,12 +437,13 @@ check_win_condition :: proc() -> bool {
             return false
         }
     }
-    log.info("win")
+    log.info("Can enter next level now")
+    // TODO: when player enter flag, load next level
     return true
 }
 
 
-load_level_from_txt :: proc(index: int) {
+load_level_from_txt :: proc(index: int) -> bool {
     builder := strings.builder_make()
 
     path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
@@ -513,6 +452,7 @@ load_level_from_txt :: proc(index: int) {
         log.infof("Loaded level%d layer1!", index)
     } else {
         log.infof("Could't load level%d layer1!", index)
+        return false
     }
 
     strings.builder_reset(&builder)
@@ -523,11 +463,14 @@ load_level_from_txt :: proc(index: int) {
         log.infof("Loaded level%d layer2!", index)
     } else {
         log.infof("Could't load level%d layer2!", index)
+        return false
     }
+    return true
 }
 
 from_txt_to_level :: proc(layer_index: int, content: string) {
-    height := 0
+    x := 0
+    y := 0
     // print level
     fmt.printf("\nlayer %d:\n", layer_index)
     for char, i in content {
@@ -538,8 +481,9 @@ from_txt_to_level :: proc(layer_index: int, content: string) {
         }
 
         en := new(Entity)
-        en.position = {i, height}
+        en.position = {x, y}
         en.layer = layer_index
+        x += 1
         switch char {
             case '@':
                 setup_player(en)
@@ -551,8 +495,33 @@ from_txt_to_level :: proc(layer_index: int, content: string) {
                 setup_target(en)
             case '>':
                 setup_flag(en)
+            case ' ': // empty
+                continue
             case '\n':
-                height += 1
+                y += 1
+                x = 0
         }
+        if layer_index == 1 {
+            append(&level.layer_1.entities, en^)
+        } else if layer_index == 2 {
+            append(&level.layer_2.entities, en^)
+        } else {
+            log.error("Invalid layer index!")
+        }
+    }
+}
+
+unload_level :: proc() {
+    clear(&level.layer_1.entities)
+    clear(&level.layer_2.entities)
+}
+
+load_next_level :: proc() {
+    unload_level()
+    if ok := load_level_from_txt(current_level_index + 1); ok {
+        current_level_index += 1
+    } else {
+        load_level_from_txt(current_level_index)
+        log.warn("Load next level failed, maybe it's the last level?")
     }
 }

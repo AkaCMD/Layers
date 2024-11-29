@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:mem"
 import "core:strings"
 import "core:os"
+import "core:log"
 
 // color palettes
 MY_YELLOW_BROWN :: rl.Color{221, 169, 99, 255}
@@ -174,6 +175,12 @@ setup_target :: proc(en: ^Entity) {
 }
 
 main :: proc() {
+    // Init logger
+    logger := log.create_console_logger()
+    context.logger = logger
+    defer log.destroy_console_logger(logger)
+    
+    // any memory leaks?
     when ODIN_DEBUG {
         track: mem.Tracking_Allocator
         mem.tracking_allocator_init(&track, context.allocator)
@@ -492,7 +499,7 @@ check_win_condition :: proc() -> bool {
             return false
         }
     }
-    fmt.println("win")
+    log.info("win")
     return true
 }
 
@@ -501,19 +508,35 @@ load_level_from_txt :: proc(index: int) {
     builder := strings.builder_make()
 
     path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
-    l1, _ := os.read_entire_file_from_filename(path1)
-    from_txt_to_level(1, l1)
+    if l1_data, ok := os.read_entire_file_from_filename(path1, context.temp_allocator); ok {
+        from_txt_to_level(1, string(l1_data))
+        log.infof("Loaded level%d layer1!", index)
+    } else {
+        log.infof("Could't load level%d layer1!", index)
+    }
 
     strings.builder_reset(&builder)
 
     path2 := fmt.sbprintf(&builder, "assets/levels/%d-l2.txt", index)
-    l2, _ := os.read_entire_file_from_filename(path2)
-    from_txt_to_level(2, l2)
+    if l2_data, ok := os.read_entire_file_from_filename(path2, context.temp_allocator); ok {
+        from_txt_to_level(2, string(l2_data))
+        log.infof("Loaded level%d layer2!", index)
+    } else {
+        log.infof("Could't load level%d layer2!", index)
+    }
 }
 
-from_txt_to_level :: proc(layer_index: int, content: []byte) {
+from_txt_to_level :: proc(layer_index: int, content: string) {
     height := 0
+    // print level
+    fmt.printf("\nlayer %d:\n", layer_index)
     for char, i in content {
+        if char != '\n' {
+            fmt.printf("%c", char)
+        } else {
+            fmt.printf("\n")
+        }
+
         en := new(Entity)
         en.position = {i, height}
         en.layer = layer_index

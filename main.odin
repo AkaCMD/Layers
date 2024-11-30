@@ -217,7 +217,6 @@ main :: proc() {
         rl.BeginMode2D(camera)
         defer rl.EndDrawing()
         game_update()
-        is_ok = check_win_condition()
         draw()
     }
 }
@@ -318,8 +317,7 @@ game_init :: proc() {
     textures[.TEXTURE_visible] = rl.LoadTexture("assets/textures/visible.png")
     textures[.TEXTURE_invisible] = rl.LoadTexture("assets/textures/invisible.png")
 
-    setup_player(&player)
-    if ok := load_level_from_txt(1); ok {
+    if ok := level_load_from_txt(1); ok {
         current_level_index = 1
     }
 }
@@ -356,7 +354,20 @@ game_update :: proc() {
         }
     }
 
-    //TODO: R to reset and [] to switch level for test
+    is_ok = check_win_condition()
+
+    // R to reset
+    if rl.IsKeyPressed(.R) {
+        level_reload()
+    }
+
+    //  [] to switch level for test
+    if rl.IsKeyPressed(.LEFT_BRACKET) {
+        level_load_by_index(current_level_index - 1)
+    }
+    if rl.IsKeyPressed(.RIGHT_BRACKET) {
+        level_load_by_index(current_level_index + 1)
+    }
 }
 
 move :: proc(en: ^Entity, dir: [2]int) -> bool {
@@ -470,18 +481,20 @@ check_win_condition :: proc() -> bool {
     en_1, en_2 := find_entities_in_position(player.position)
     if (en_1 != nil && en_1.type == .Flag) || (en_2 != nil && en_2.type == .Flag) {
         log.info("Load next level!")
-        load_next_level()
+        level_load_by_index(current_level_index + 1)
     }
     return true
 }
 
 
-load_level_from_txt :: proc(index: int) -> bool {
+level_load_from_txt :: proc(index: int) -> bool {
+    setup_player(&player)
+
     builder := strings.builder_make()
 
     path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
     if l1_data, ok := os.read_entire_file_from_filename(path1, context.temp_allocator); ok {
-        from_txt_to_level(1, string(l1_data))
+        level_load_layer_from_txt(1, string(l1_data))
         log.infof("Loaded level%d layer1!", index)
     } else {
         log.infof("Could't load level%d layer1!", index)
@@ -492,7 +505,7 @@ load_level_from_txt :: proc(index: int) -> bool {
 
     path2 := fmt.sbprintf(&builder, "assets/levels/%d-l2.txt", index)
     if l2_data, ok := os.read_entire_file_from_filename(path2, context.temp_allocator); ok {
-        from_txt_to_level(2, string(l2_data))
+        level_load_layer_from_txt(2, string(l2_data))
         log.infof("Loaded level%d layer2!", index)
     } else {
         log.infof("Could't load level%d layer2!", index)
@@ -501,7 +514,7 @@ load_level_from_txt :: proc(index: int) -> bool {
     return true
 }
 
-from_txt_to_level :: proc(layer_index: int, content: string) {
+level_load_layer_from_txt :: proc(layer_index: int, content: string) {
     x := 0
     y := 0
     // print level
@@ -544,18 +557,24 @@ from_txt_to_level :: proc(layer_index: int, content: string) {
     }
 }
 
-unload_level :: proc() {
+level_unload :: proc() {
     clear(&level.layer_1.entities)
     clear(&level.layer_2.entities)
     clear(&targets)
 }
 
-load_next_level :: proc() {
-    unload_level()
-    if ok := load_level_from_txt(current_level_index + 1); ok {
-        current_level_index += 1
+level_load_by_index :: proc(index: int) {
+    level_unload()
+    if ok := level_load_from_txt(index); ok {
+        current_level_index = index
     } else {
-        load_level_from_txt(current_level_index)
-        log.warn("Load next level failed, maybe it's the last level?")
+        level_load_from_txt(current_level_index)
+        log.warn("Load level failed.")
     }
+}
+
+level_reload :: proc() {
+    level_unload()
+    level_load_from_txt(current_level_index)
+    log.info("reload")
 }

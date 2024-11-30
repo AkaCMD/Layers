@@ -25,6 +25,10 @@ MAX_ENTITIES_COUNT :: 300
 
 HALF_ALPHA_VALUE :: u8(150)
 
+// SFX
+sfx_footstep : rl.Sound
+sfx_pushbox : rl.Sound
+
 offset := rl.Vector2{0, 0}
 mouse_position : rl.Vector2
 targets : [dynamic]Entity
@@ -206,7 +210,9 @@ main :: proc() {
 
     rl.SetConfigFlags({.WINDOW_RESIZABLE})
     rl.InitWindow(SCREEN_SIZE+200, SCREEN_SIZE, "UWU")
+    rl.InitAudioDevice()
     defer rl.CloseWindow()
+    defer rl.CloseAudioDevice()
     rl.SetTargetFPS(100)
     game_init()
 
@@ -302,6 +308,9 @@ get_move_input :: proc() {
         input = .Right
     }
     mouse_position = rl.GetMousePosition()
+    if input != .None {
+        rl.PlaySound(sfx_footstep)
+    }
 }
 
 game_init :: proc() {
@@ -313,9 +322,11 @@ game_init :: proc() {
     textures[.TEXTURE_flag_ok] = rl.LoadTexture("assets/textures/flag_ok.png")
     textures[.TEXTURE_flag_no] = rl.LoadTexture("assets/textures/flag_no.png")
     textures[.TEXTURE_target] = rl.LoadTexture("assets/textures/target.png")
-
     textures[.TEXTURE_visible] = rl.LoadTexture("assets/textures/visible.png")
     textures[.TEXTURE_invisible] = rl.LoadTexture("assets/textures/invisible.png")
+
+    sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")
+    sfx_pushbox = rl.LoadSound("assets/audio/pushbox.ogg")
 
     if ok := level_load_from_txt(1); ok {
         current_level_index = 1
@@ -369,7 +380,7 @@ game_update :: proc() {
         level_load_by_index(current_level_index + 1)
     }
 }
-
+// TODO: fix issue: can't push box on flag
 move :: proc(en: ^Entity, dir: [2]int) -> bool {
     target_pos := en.position + dir
     entity_in_l1, entity_in_l2 := find_entities_in_position(target_pos)
@@ -386,6 +397,7 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
         if entity_in_l1.type == .Cargo {
             if move(entity_in_l1, dir) {
                 en.position = target_pos
+                rl.PlaySound(sfx_pushbox)
                 return true
             }
         } else {
@@ -396,6 +408,7 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
         if entity_in_l2.type == .Cargo {
             if move(entity_in_l2, dir) {
                 en.position = target_pos
+                rl.PlaySound(sfx_pushbox)
                 return true
             }
         } else {

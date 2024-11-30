@@ -235,8 +235,8 @@ draw :: proc() {
     }
 
     // draw level
-    if level.layer_1.is_visible {
-        for &entity in level.layer_1.entities {
+    if level.layer_2.is_visible {
+        for &entity in level.layer_2.entities {
             if entity.type == .Flag {
                 if is_ok {
                     entity.texture_id = .TEXTURE_flag_ok
@@ -248,8 +248,9 @@ draw :: proc() {
             rl.DrawTextureV(textures[entity.texture_id], rl.Vector2{f32(entity.position.x*GRID_SIZE), f32(entity.position.y*GRID_SIZE)}, rl.Color{255, 255, 255, HALF_ALPHA_VALUE})
         }
     }
-    if level.layer_2.is_visible {
-        for &entity in level.layer_2.entities {
+
+    if level.layer_1.is_visible {
+        for &entity in level.layer_1.entities {
             if entity.type == .Flag {
                 if is_ok {
                     entity.texture_id = .TEXTURE_flag_ok
@@ -287,7 +288,7 @@ draw :: proc() {
     }
 }
 
-get_input :: proc() {
+get_move_input :: proc() {
     input = .None
     if rl.IsKeyPressed(.UP) || rl.IsKeyPressed(.W) {
         input = .Up
@@ -324,8 +325,8 @@ game_init :: proc() {
 }
 
 game_update :: proc() {
-    get_input()
-    // fmt.println("mouse pos: ", mouse_position)
+    get_move_input()
+    // log.info("mouse pos: ", mouse_position)
     #partial switch input {
         case .Up:
             move(&player, {0, -1})
@@ -354,6 +355,8 @@ game_update :: proc() {
             }
         }
     }
+
+    //TODO: R to reset and [] to switch level for test
 }
 
 move :: proc(en: ^Entity, dir: [2]int) -> bool {
@@ -402,7 +405,32 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
     return false
 }
 
-find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity){
+find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity) {
+    entity_in_l1: ^Entity = nil
+    entity_in_l2: ^Entity = nil
+
+    if level.layer_1.is_visible == true {
+        for &en in level.layer_1.entities {
+            if en.position == pos {
+                entity_in_l1 = &en
+                break
+            }
+        }
+    }
+
+    if level.layer_2.is_visible == true {
+        for &en in level.layer_2.entities {
+            if en.position == pos {
+                entity_in_l2 = &en
+                break
+            }
+        }
+    }
+
+    return entity_in_l1, entity_in_l2
+}
+
+find_non_overlap_entities_in_positon :: proc(pos: [2]int) -> (^Entity, ^Entity) {
     entity_in_l1: ^Entity = nil
     entity_in_l2: ^Entity = nil
 
@@ -432,13 +460,18 @@ check_win_condition :: proc() -> bool {
         if get_layer_by_num(target.layer).is_visible == false {
             return false
         }
-        en_1, en_2 := find_entities_in_position(target.position)
+        en_1, en_2 := find_non_overlap_entities_in_positon(target.position)
         if en_1 == nil && en_2 == nil {
             return false
         }
     }
     log.info("Can enter next level now")
-    // TODO: when player enter flag, load next level
+    // when player enter the flag, load next level
+    en_1, en_2 := find_entities_in_position(player.position)
+    if (en_1 != nil && en_1.type == .Flag) || (en_2 != nil && en_2.type == .Flag) {
+        log.info("Load next level!")
+        load_next_level()
+    }
     return true
 }
 
@@ -514,6 +547,7 @@ from_txt_to_level :: proc(layer_index: int, content: string) {
 unload_level :: proc() {
     clear(&level.layer_1.entities)
     clear(&level.layer_2.entities)
+    clear(&targets)
 }
 
 load_next_level :: proc() {

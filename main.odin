@@ -28,6 +28,7 @@ HALF_ALPHA_VALUE :: u8(150)
 // SFX
 sfx_footstep : rl.Sound
 sfx_pushbox : rl.Sound
+sfx_switch : rl.Sound
 
 offset := rl.Vector2{0, 0}
 mouse_position : rl.Vector2
@@ -327,6 +328,7 @@ game_init :: proc() {
 
     sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")
     sfx_pushbox = rl.LoadSound("assets/audio/pushbox.ogg")
+    sfx_switch = rl.LoadSound("assets/audio/switch.ogg")
 
     if ok := level_load_from_txt(1); ok {
         current_level_index = 1
@@ -356,12 +358,14 @@ game_update :: proc() {
             if !level.layer_1.is_visible && !level.layer_2.is_visible {
                 level.layer_2.is_visible = true
             } 
+            rl.PlaySound(sfx_switch)
         }
         if mouse_position.x > 960 && mouse_position.x < 960+64 && mouse_position.y > 40 && mouse_position.y < 40+40 {
             level.layer_2.is_visible = !level.layer_2.is_visible
             if !level.layer_1.is_visible && !level.layer_2.is_visible {
                 level.layer_1.is_visible = true
             }
+            rl.PlaySound(sfx_switch)
         }
     }
 
@@ -380,10 +384,10 @@ game_update :: proc() {
         level_load_by_index(current_level_index + 1)
     }
 }
-// TODO: fix issue: can't push box on flag
+
 move :: proc(en: ^Entity, dir: [2]int) -> bool {
     target_pos := en.position + dir
-    entity_in_l1, entity_in_l2 := find_entities_in_position(target_pos)
+    entity_in_l1, entity_in_l2 := find_non_overlap_entities_in_positon(target_pos)
 
     if target_pos.x < 0 || target_pos.x >= GRID_COUNT || target_pos.y < 0 || target_pos.y >= GRID_COUNT {
         return false // Out of bounds, do nothing

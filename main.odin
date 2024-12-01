@@ -29,6 +29,7 @@ HALF_ALPHA_VALUE :: u8(150)
 sfx_footstep : rl.Sound
 sfx_pushbox : rl.Sound
 sfx_switch : rl.Sound
+sfx_activate : rl.Sound
 
 offset := rl.Vector2{0, 0}
 mouse_position : rl.Vector2
@@ -329,6 +330,7 @@ game_init :: proc() {
     sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")
     sfx_pushbox = rl.LoadSound("assets/audio/pushbox.ogg")
     sfx_switch = rl.LoadSound("assets/audio/switch.ogg")
+    sfx_activate = rl.LoadSound("assets/audio/activate.ogg")
 
     if ok := level_load_from_txt(1); ok {
         current_level_index = 1
@@ -494,6 +496,9 @@ check_win_condition :: proc() -> bool {
         }
     }
     log.info("Can enter next level now")
+    if !is_ok {
+        rl.PlaySound(sfx_activate)
+    }
     // when player enter the flag, load next level
     en_1, en_2 := find_entities_in_position(player.position)
     if (en_1 != nil && en_1.type == .Flag) || (en_2 != nil && en_2.type == .Flag) {
@@ -578,6 +583,7 @@ level_unload :: proc() {
     clear(&level.layer_1.entities)
     clear(&level.layer_2.entities)
     clear(&targets)
+    is_ok = false
 }
 
 level_load_by_index :: proc(index: int) {

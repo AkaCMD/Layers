@@ -58,6 +58,9 @@ TextureID :: enum {
     TEXTURE_flag_no,
     TEXTURE_visible,
     TEXTURE_invisible,
+    TEXTURE_move,
+    TEXTURE_reset,
+    TEXTURE_undo,
 }
 
 textures: [TextureID]rl.Texture2D
@@ -90,6 +93,8 @@ get_texture_id_from_type :: proc(type: Entity_Type) -> TextureID {
             return .TEXTURE_none
     }
 }
+
+icon : rl.Image
 
 Layer :: struct {
     entities: [dynamic]Entity,
@@ -317,6 +322,8 @@ get_move_input :: proc() {
 
 game_init :: proc() {
     // load assets
+    icon = rl.LoadImage("assets/icon.png")
+    rl.SetWindowIcon(icon)
     font = rl.LoadFont("assets/fonts/m6x11.ttf")
     textures[.TEXTURE_player] = rl.LoadTexture("assets/textures/duck.png")
     textures[.TEXTURE_cargo] = rl.LoadTexture("assets/textures/cargo.png")
@@ -326,6 +333,9 @@ game_init :: proc() {
     textures[.TEXTURE_target] = rl.LoadTexture("assets/textures/target.png")
     textures[.TEXTURE_visible] = rl.LoadTexture("assets/textures/visible.png")
     textures[.TEXTURE_invisible] = rl.LoadTexture("assets/textures/invisible.png")
+    textures[.TEXTURE_move] = rl.LoadTexture("assets/textures/move.png")
+    textures[.TEXTURE_reset] = rl.LoadTexture("assets/textures/reset.png")
+    textures[.TEXTURE_undo] = rl.LoadTexture("assets/textures/undo.png")
 
     sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")
     sfx_pushbox = rl.LoadSound("assets/audio/pushbox.ogg")

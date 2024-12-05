@@ -216,7 +216,7 @@ main :: proc() {
     }
 
     rl.SetConfigFlags({.WINDOW_RESIZABLE})
-    rl.InitWindow(SCREEN_SIZE+200, SCREEN_SIZE, "UWU")
+    rl.InitWindow(SCREEN_SIZE+200, SCREEN_SIZE, "Layers")
     rl.InitAudioDevice()
     defer rl.CloseWindow()
     defer rl.CloseAudioDevice()
@@ -298,6 +298,11 @@ draw :: proc() {
     else {
         rl.DrawTexture(textures[.TEXTURE_invisible], 630, -13+30, rl.WHITE)
     }
+
+    height :: 70
+    rl.DrawTexture(textures[.TEXTURE_move], 645, height, rl.WHITE)
+    rl.DrawTexture(textures[.TEXTURE_undo], 645, height+110, rl.WHITE)
+    rl.DrawTexture(textures[.TEXTURE_reset], 645+64, height+110, rl.WHITE)
 }
 
 get_move_input :: proc() {
@@ -505,7 +510,7 @@ check_win_condition :: proc() -> bool {
             return false
         }
     }
-    log.info("Can enter next level now")
+
     if !is_ok {
         rl.PlaySound(sfx_activate)
     }

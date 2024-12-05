@@ -424,17 +424,9 @@ move :: proc(en: ^Entity, dir: [2]int) -> bool {
         return true
     }
 
-    if try_move_cargo(entity_in_l1, dir, en, target_pos, box) || 
+    if try_move_cargo(entity_in_l1, dir, en, target_pos, box) &&
        try_move_cargo(entity_in_l2, dir, en, target_pos, box) {
         return true
-    }
-
-    if entity_in_l1 != nil && entity_in_l2 != nil && 
-       entity_in_l1.type == .Cargo && entity_in_l2.type == .Cargo {
-        if move(entity_in_l1, dir) && move(entity_in_l2, dir) {
-            update_position(en, target_pos, box)
-            return true
-        }
     }
 
     return false
@@ -460,13 +452,16 @@ can_move_to :: proc(entity_in_l1: ^Entity, entity_in_l2: ^Entity) -> bool {
 
 try_move_cargo :: proc(entity: ^Entity, dir: [2]int, en: ^Entity, target_pos: [2]int, box: ^Entity) -> bool {
     if entity != nil && entity.type == .Cargo {
-        if move(entity, dir) {
+        if  en_1, en_2 := find_non_overlap_entities_in_positon(entity.position + dir); (en_1 == nil) && (en_2 == nil) {
             update_position(en, target_pos, box)
+            entity.position += dir 
             rl.PlaySound(sfx_pushbox)
             return true
+        } else {
+            return false
         }
     }
-    return false
+    return true
 }
 
 update_position :: proc(en: ^Entity, target_pos: [2]int, box: ^Entity) {

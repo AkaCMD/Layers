@@ -155,7 +155,7 @@ player := Player{}
 setup_player :: proc(en: ^Entity) {
     en.texture_id = .TEXTURE_player
     en.type = .Player
-    en.position = {5, 6}
+    en.position = {1, 1}
     en.priority = 3
 }
 
@@ -528,7 +528,7 @@ check_win_condition :: proc() -> bool {
             return false
         }
         en_1, en_2 := find_non_overlap_entities_in_positon(target.position)
-        if en_1 == nil && en_2 == nil {
+        if (en_1 == nil || (en_1 != nil && en_1.type != .Cargo)) && (en_2 == nil || (en_2 != nil && en_2.type != .Cargo)) {
             return false
         }
     }

@@ -403,51 +403,78 @@ game_update :: proc() {
 }
 
 move :: proc(en: ^Entity, dir: [2]int) -> bool {
-    target_pos := en.position + dir
-    entity_in_l1, entity_in_l2 := find_non_overlap_entities_in_positon(target_pos)
+    // Check for overlapping entities
+    en_1, en_2 := find_non_overlap_entities_in_positon(en.position)
+    box: ^Entity = nil
 
-    if target_pos.x < 0 || target_pos.x >= GRID_COUNT || target_pos.y < 0 || target_pos.y >= GRID_COUNT {
+    if en.type == .Player {
+        box = select_cargo(en_1, en_2)
+    }
+
+    // Determine target position
+    target_pos := en.position + dir
+    if !is_within_bounds(target_pos) {
         return false // Out of bounds, do nothing
     }
 
-    if ((entity_in_l1 == nil || entity_in_l1.can_overlap) && (entity_in_l2 == nil || entity_in_l2.can_overlap)) {
-        en.position = target_pos
+    entity_in_l1, entity_in_l2 := find_non_overlap_entities_in_positon(target_pos)
+
+    if can_move_to(entity_in_l1, entity_in_l2) {
+        update_position(en, target_pos, box)
         return true
-    } 
-    else if entity_in_l1 != nil && (entity_in_l2 == nil || entity_in_l2.can_overlap) {
-        if entity_in_l1.type == .Cargo {
-            if move(entity_in_l1, dir) {
-                en.position = target_pos
-                rl.PlaySound(sfx_pushbox)
-                return true
-            }
-        } else {
-            return false
+    }
+
+    if try_move_cargo(entity_in_l1, dir, en, target_pos, box) || 
+       try_move_cargo(entity_in_l2, dir, en, target_pos, box) {
+        return true
+    }
+
+    if entity_in_l1 != nil && entity_in_l2 != nil && 
+       entity_in_l1.type == .Cargo && entity_in_l2.type == .Cargo {
+        if move(entity_in_l1, dir) && move(entity_in_l2, dir) {
+            update_position(en, target_pos, box)
+            return true
         }
     }
-    else if (entity_in_l1 == nil || entity_in_l1.can_overlap) && entity_in_l2 != nil {
-        if entity_in_l2.type == .Cargo {
-            if move(entity_in_l2, dir) {
-                en.position = target_pos
-                rl.PlaySound(sfx_pushbox)
-                return true
-            }
-        } else {
-            return false
-        }
+
+    return false
+}
+
+select_cargo :: proc(en_1: ^Entity, en_2: ^Entity) -> ^Entity {
+    if en_1 != nil && en_1.type == .Cargo {
+        return en_1
+    } else if en_2 != nil && en_2.type == .Cargo {
+        return en_2
     }
-    else {
-        // TODO: should overlapped cargos be pushed together?
-        if entity_in_l2.type == .Cargo && entity_in_l1.type == .Cargo {
-            if move(entity_in_l2, dir) && move(entity_in_l1, dir) {
-                en.position = target_pos
-                return true
-            }
-        } else{
-            return false
+    return nil
+}
+
+is_within_bounds :: proc(pos: [2]int) -> bool {
+    return pos.x >= 0 && pos.x < GRID_COUNT && pos.y >= 0 && pos.y < GRID_COUNT
+}
+
+can_move_to :: proc(entity_in_l1: ^Entity, entity_in_l2: ^Entity) -> bool {
+    return (entity_in_l1 == nil || entity_in_l1.can_overlap) && 
+           (entity_in_l2 == nil || entity_in_l2.can_overlap)
+}
+
+try_move_cargo :: proc(entity: ^Entity, dir: [2]int, en: ^Entity, target_pos: [2]int, box: ^Entity) -> bool {
+    if entity != nil && entity.type == .Cargo {
+        if move(entity, dir) {
+            update_position(en, target_pos, box)
+            rl.PlaySound(sfx_pushbox)
+            return true
         }
     }
     return false
+}
+
+update_position :: proc(en: ^Entity, target_pos: [2]int, box: ^Entity) {
+    en.position = target_pos
+    if box != nil {
+        box.position = target_pos
+        rl.PlaySound(sfx_pushbox)
+    }
 }
 
 find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity) {

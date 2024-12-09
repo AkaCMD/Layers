@@ -2,7 +2,6 @@ package game
 
 import rl "vendor:raylib"
 import "core:fmt"
-import "core:mem"
 import "core:strings"
 import "core:os"
 import "core:log"
@@ -40,6 +39,11 @@ font : rl.Font
 is_ok: bool
 current_level_index: int
 
+// UI
+eyeball_1_bounds : rl.Rectangle
+eyeball_2_bounds : rl.Rectangle
+humanmade_btn_bounds : rl.Rectangle
+
 Entity_Type :: enum u8 {
     Player = '@',
     Cargo = 'C',
@@ -61,6 +65,7 @@ TextureID :: enum {
     TEXTURE_move,
     TEXTURE_reset,
     TEXTURE_undo,
+    TEXTURE_humanmade,
 }
 
 textures: [TextureID]rl.Texture2D
@@ -234,6 +239,7 @@ main :: proc() {
     }
 }
 
+// :draw
 draw :: proc() {
     rl.ClearBackground(rl.WHITE)
 
@@ -303,6 +309,7 @@ draw :: proc() {
     rl.DrawTexture(textures[.TEXTURE_move], 645, height, rl.WHITE)
     rl.DrawTexture(textures[.TEXTURE_undo], 645, height+110, rl.WHITE)
     rl.DrawTexture(textures[.TEXTURE_reset], 645+64, height+110, rl.WHITE)
+    rl.DrawTexture(textures[.TEXTURE_humanmade], 682, 606, rl.WHITE)
 }
 
 get_move_input :: proc() {
@@ -325,6 +332,7 @@ get_move_input :: proc() {
     }
 }
 
+// :init
 game_init :: proc() {
     // load assets
     icon = rl.LoadImage("assets/icon.png")
@@ -341,20 +349,26 @@ game_init :: proc() {
     textures[.TEXTURE_move] = rl.LoadTexture("assets/textures/move.png")
     textures[.TEXTURE_reset] = rl.LoadTexture("assets/textures/reset.png")
     textures[.TEXTURE_undo] = rl.LoadTexture("assets/textures/undo.png")
+    textures[.TEXTURE_humanmade] = rl.LoadTexture("assets/textures/88x31-light.png")
 
     sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")
     sfx_pushbox = rl.LoadSound("assets/audio/pushbox.ogg")
     sfx_switch = rl.LoadSound("assets/audio/switch.ogg")
     sfx_activate = rl.LoadSound("assets/audio/activate.ogg")
 
+    eyeball_1_bounds = rl.Rectangle{960, 0, f32(textures[.TEXTURE_visible].width), f32(textures[.TEXTURE_visible].height)}
+    eyeball_2_bounds = rl.Rectangle{960, f32(textures[.TEXTURE_visible].height), f32(textures[.TEXTURE_visible].width), f32(textures[.TEXTURE_visible].height)}
+    humanmade_btn_bounds = rl.Rectangle{1022, 909, f32(textures[.TEXTURE_humanmade].width), f32(textures[.TEXTURE_humanmade].height)}
+
     if ok := level_load_from_txt(1); ok {
         current_level_index = 1
     }
 }
 
+// :update
 game_update :: proc() {
     get_move_input()
-    // log.info("mouse pos: ", mouse_position)
+    log.info("mouse pos: ", mouse_position)
     #partial switch input {
         case .Up:
             move(&player, {0, -1})
@@ -368,20 +382,27 @@ game_update :: proc() {
             player.is_flipped = false
     }
 
-    // toggle layer's visibility
+    // mouse click
     if rl.IsMouseButtonPressed(.LEFT) {
-        if mouse_position.x > 960 && mouse_position.x < 960+64 && mouse_position.y > 0 && mouse_position.y < 40 {
+        // toggle layer's visibility
+        if rl.CheckCollisionPointRec(mouse_position, eyeball_1_bounds) {
             level.layer_1.is_visible = !level.layer_1.is_visible
             if !level.layer_1.is_visible && !level.layer_2.is_visible {
                 level.layer_2.is_visible = true
             } 
             rl.PlaySound(sfx_switch)
         }
-        if mouse_position.x > 960 && mouse_position.x < 960+64 && mouse_position.y > 40 && mouse_position.y < 40+40 {
+        if rl.CheckCollisionPointRec(mouse_position, eyeball_2_bounds) {
             level.layer_2.is_visible = !level.layer_2.is_visible
             if !level.layer_1.is_visible && !level.layer_2.is_visible {
                 level.layer_1.is_visible = true
             }
+            rl.PlaySound(sfx_switch)
+        }
+
+        // button
+        if rl.CheckCollisionPointRec(mouse_position, humanmade_btn_bounds) {
+            rl.OpenURL("https://brainmade.org")
             rl.PlaySound(sfx_switch)
         }
     }
@@ -578,7 +599,7 @@ level_load_layer_from_txt :: proc(layer_index: int, content: string) {
     y := 0
     // print level
     fmt.printf("\nlayer %d:\n", layer_index)
-    for char, i in content {
+    for char in content {
         if char != '\n' {
             fmt.printf("%c", char)
         } else {

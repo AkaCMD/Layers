@@ -10,7 +10,7 @@ import "core:log"
 MY_YELLOW_BROWN :: rl.Color{221, 169, 99, 255}
 MY_BROWN :: rl.Color{201, 129, 75, 255}
 MY_BLACK :: rl.Color{37, 39, 42, 255}
-MY_LIGHT_BROWN :: rl.Color{219, 193, 175, 255}
+MY_LIGHT_BROWN :: rl.Color{219, 193, 175, 255}  
 MY_ORANGE :: rl.Color{207, 106, 79, 255}
 MY_YELLOW :: rl.Color{224, 185, 74, 255}
 MY_GREEN :: rl.Color{178, 175, 92, 255}
@@ -18,11 +18,17 @@ MY_GREY :: rl.Color{167, 167, 158, 255}
 MY_PURPLE :: rl.Color{155, 105, 112, 255}
 
 GRID_SIZE :: 64
-SCREEN_SIZE :: 960
+LEVEL_SIZE :: 960
+GAME_SCREEN_WIDTH :: 960 + 200
+GAME_SCREEN_HEIGHT :: 960
 GRID_COUNT :: 10
 MAX_ENTITIES_COUNT :: 300
 
 HALF_ALPHA_VALUE :: u8(150)
+
+// render
+target : rl.RenderTexture2D
+scale : f32
 
 // SFX
 sfx_footstep : rl.Sound
@@ -36,7 +42,7 @@ targets : [dynamic]Entity
 
 font : rl.Font
 
-is_ok: bool
+is_completed: bool
 current_level_index: int
 
 // UI
@@ -88,7 +94,7 @@ get_texture_id_from_type :: proc(type: Entity_Type) -> TextureID {
         case .Target:
             return .TEXTURE_target
         case .Flag:
-            if is_ok {
+            if is_completed {
                 return .TEXTURE_flag_ok
             }
             else {
@@ -220,29 +226,61 @@ main :: proc() {
         }
     }
 
-    rl.SetConfigFlags({.WINDOW_RESIZABLE})
-    rl.InitWindow(SCREEN_SIZE+200, SCREEN_SIZE, "Layers")
+    rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
+    rl.InitWindow(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT, "Layers")
     rl.InitAudioDevice()
     defer rl.CloseWindow()
     defer rl.CloseAudioDevice()
-    rl.SetTargetFPS(100)
+
+    // Render texture initialization, used to hold the rendering result so we can easily resize it
+    target = rl.LoadRenderTexture(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT)
+    rl.SetTextureFilter(target.texture, rl.TextureFilter.BILINEAR)
+
+    rl.SetTargetFPS(60)
     game_init()
 
     camera: rl.Camera2D
     camera.zoom = 1.5
 
     for !rl.WindowShouldClose() {
-        rl.BeginMode2D(camera)
-        defer rl.EndDrawing()
-        game_update()
-        draw()
+        scale = min(f32(rl.GetScreenWidth())/f32(GAME_SCREEN_WIDTH),
+                    f32(rl.GetScreenHeight())/f32(GAME_SCREEN_HEIGHT))
+        
+        rl.BeginTextureMode(target)
+        {
+            rl.BeginMode2D(camera)
+            {
+                game_update()
+                draw()
+            }
+            rl.EndMode2D()
+        }
+        rl.EndTextureMode()
+
+        // Draw scaled content to screen
+        rl.BeginDrawing()
+        {     
+            // Calculate destination rectangle for scaled drawing
+            dest := rl.Rectangle{
+                (f32(rl.GetScreenWidth()) - f32(GAME_SCREEN_WIDTH)*scale)*0.5,
+                (f32(rl.GetScreenHeight()) - f32(GAME_SCREEN_HEIGHT)*scale)*0.5,
+                f32(GAME_SCREEN_WIDTH)*scale,
+                f32(GAME_SCREEN_HEIGHT)*scale,
+            }
+                    
+            // Draw render texture to screen, properly scaled
+            source := rl.Rectangle{0, 0, f32(target.texture.width), f32(-target.texture.height)}
+            origin := rl.Vector2{0, 0}
+                    
+            rl.DrawTexturePro(target.texture, source, dest, origin, 0.0, rl.WHITE)
+        }
+        rl.EndDrawing()
     }
 }
 
 // :draw
 draw :: proc() {
     rl.ClearBackground(rl.WHITE)
-
     // draw grid lines
     for i := 0; i < GRID_COUNT+1; i += 1 {
         rl.DrawLineEx(rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, offset.y/2}, rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, GRID_COUNT*GRID_SIZE - offset.y/2}, 2, rl.Color{MY_GREY.r, MY_GREY.g, MY_GREY.b, 80})
@@ -256,7 +294,7 @@ draw :: proc() {
     if level.layer_2.is_visible {
         for &entity in level.layer_2.entities {
             if entity.type == .Flag {
-                if is_ok {
+                if is_completed {
                     entity.texture_id = .TEXTURE_flag_ok
                 }
                 else {
@@ -270,7 +308,7 @@ draw :: proc() {
     if level.layer_1.is_visible {
         for &entity in level.layer_1.entities {
             if entity.type == .Flag {
-                if is_ok {
+                if is_completed {
                     entity.texture_id = .TEXTURE_flag_ok
                 }
                 else {
@@ -407,7 +445,7 @@ game_update :: proc() {
         }
     }
 
-    is_ok = check_win_condition()
+    is_completed = check_completion()
 
     // R to reset
     if rl.IsKeyPressed(.R) {
@@ -543,7 +581,7 @@ find_non_overlap_entities_in_positon :: proc(pos: [2]int) -> (^Entity, ^Entity) 
     return entity_in_l1, entity_in_l2
 }
 
-check_win_condition :: proc() -> bool {
+check_completion :: proc() -> bool {
     for target in targets {
         if get_layer_by_num(target.layer).is_visible == false {
             return false
@@ -554,7 +592,7 @@ check_win_condition :: proc() -> bool {
         }
     }
 
-    if !is_ok {
+    if !is_completed {
         rl.PlaySound(sfx_activate)
     }
     // when player enter the flag, load next level
@@ -641,7 +679,7 @@ level_unload :: proc() {
     clear(&level.layer_1.entities)
     clear(&level.layer_2.entities)
     clear(&targets)
-    is_ok = false
+    is_completed = false
 }
 
 level_load_by_index :: proc(index: int) {

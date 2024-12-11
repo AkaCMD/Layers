@@ -17,11 +17,12 @@ MY_GREEN :: rl.Color{178, 175, 92, 255}
 MY_GREY :: rl.Color{167, 167, 158, 255}
 MY_PURPLE :: rl.Color{155, 105, 112, 255}
 
-GRID_SIZE :: 64
-LEVEL_SIZE :: 960
 GAME_SCREEN_WIDTH :: 960 + 200
 GAME_SCREEN_HEIGHT :: 960
+ZOOM :: 1.5
+LEVEL_SIZE :: 960
 GRID_COUNT :: 10
+GRID_SIZE :: LEVEL_SIZE / (GRID_COUNT*ZOOM)
 MAX_ENTITIES_COUNT :: 300
 
 HALF_ALPHA_VALUE :: u8(150)
@@ -234,17 +235,21 @@ main :: proc() {
 
     // Render texture initialization, used to hold the rendering result so we can easily resize it
     target = rl.LoadRenderTexture(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT)
-    rl.SetTextureFilter(target.texture, rl.TextureFilter.BILINEAR)
+    rl.SetTextureFilter(target.texture, rl.TextureFilter.POINT)
 
     rl.SetTargetFPS(60)
     game_init()
 
     camera: rl.Camera2D
-    camera.zoom = 1.5
+    camera.zoom = ZOOM
 
     for !rl.WindowShouldClose() {
         scale = min(f32(rl.GetScreenWidth())/f32(GAME_SCREEN_WIDTH),
                     f32(rl.GetScreenHeight())/f32(GAME_SCREEN_HEIGHT))
+        
+        log.info("scale: ", scale)
+                
+        init_ui_bounds()
         
         rl.BeginTextureMode(target)
         {
@@ -280,7 +285,7 @@ main :: proc() {
 
 // :draw
 draw :: proc() {
-    rl.ClearBackground(rl.WHITE)
+    rl.ClearBackground(rl.RAYWHITE)
     // draw grid lines
     for i := 0; i < GRID_COUNT+1; i += 1 {
         rl.DrawLineEx(rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, offset.y/2}, rl.Vector2{f32(GRID_SIZE*i) + offset.x/2, GRID_COUNT*GRID_SIZE - offset.y/2}, 2, rl.Color{MY_GREY.r, MY_GREY.g, MY_GREY.b, 80})
@@ -328,26 +333,27 @@ draw :: proc() {
     }
 
     // draw text and ui
+    // :ui texture positions
     rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 20, 1.2, MY_BLACK)
     rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 40}, 20, 1.2, MY_BLACK)
     if level.layer_1.is_visible {
-        rl.DrawTexture(textures[.TEXTURE_visible], 630, -13, rl.WHITE)
+        rl.DrawTextureV(textures[.TEXTURE_visible], rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y-13}, rl.WHITE)
     }
     else {
-        rl.DrawTexture(textures[.TEXTURE_invisible], 630, -13, rl.WHITE)
+        rl.DrawTextureV(textures[.TEXTURE_invisible], rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y-13}, rl.WHITE)
     }
     if level.layer_2.is_visible {
-        rl.DrawTexture(textures[.TEXTURE_visible], 630, -13+30, rl.WHITE)
+        rl.DrawTextureV(textures[.TEXTURE_visible], rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y-13}, rl.WHITE)
     }
     else {
-        rl.DrawTexture(textures[.TEXTURE_invisible], 630, -13+30, rl.WHITE)
+        rl.DrawTextureV(textures[.TEXTURE_invisible], rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y-13}, rl.WHITE)
     }
 
-    height :: 70
+    height :: 420
     rl.DrawTexture(textures[.TEXTURE_move], 645, height, rl.WHITE)
     rl.DrawTexture(textures[.TEXTURE_undo], 645, height+110, rl.WHITE)
     rl.DrawTexture(textures[.TEXTURE_reset], 645+64, height+110, rl.WHITE)
-    rl.DrawTexture(textures[.TEXTURE_humanmade], 682, 606, rl.WHITE)
+    rl.DrawTextureV(textures[.TEXTURE_humanmade], rl.Vector2{humanmade_btn_bounds.x, humanmade_btn_bounds.y}, rl.WHITE)
 }
 
 get_move_input :: proc() {
@@ -364,7 +370,7 @@ get_move_input :: proc() {
     else if rl.IsKeyPressed(.RIGHT) || rl.IsKeyPressed(.D) {
         input = .Right
     }
-    mouse_position = rl.GetMousePosition()
+    mouse_position = get_mouse_position()
     if input != .None {
         rl.PlaySound(sfx_footstep)
     }
@@ -394,19 +400,38 @@ game_init :: proc() {
     sfx_switch = rl.LoadSound("assets/audio/switch.ogg")
     sfx_activate = rl.LoadSound("assets/audio/activate.ogg")
 
-    eyeball_1_bounds = rl.Rectangle{960, 0, f32(textures[.TEXTURE_visible].width), f32(textures[.TEXTURE_visible].height)}
-    eyeball_2_bounds = rl.Rectangle{960, f32(textures[.TEXTURE_visible].height), f32(textures[.TEXTURE_visible].width), f32(textures[.TEXTURE_visible].height)}
-    humanmade_btn_bounds = rl.Rectangle{1022, 909, f32(textures[.TEXTURE_humanmade].width), f32(textures[.TEXTURE_humanmade].height)}
-
     if ok := level_load_from_txt(1); ok {
         current_level_index = 1
+    }
+}
+
+// :ui bounds positions
+init_ui_bounds :: proc () {
+    eyeball_1_bounds = rl.Rectangle{
+        630,
+        1,
+        f32(textures[.TEXTURE_visible].width),
+        f32(textures[.TEXTURE_visible].height/2)
+    }
+
+    eyeball_2_bounds = rl.Rectangle{
+        630,
+        33,
+        f32(textures[.TEXTURE_visible].width),
+        f32(textures[.TEXTURE_visible].height/2)
+    }
+
+    humanmade_btn_bounds = rl.Rectangle{
+        682,
+        606,
+        f32(textures[.TEXTURE_humanmade].width),
+        f32(textures[.TEXTURE_humanmade].height)
     }
 }
 
 // :update
 game_update :: proc() {
     get_move_input()
-    log.info("mouse pos: ", mouse_position)
     #partial switch input {
         case .Up:
             move(&player, {0, -1})
@@ -419,6 +444,11 @@ game_update :: proc() {
             move(&player, {1, 0})
             player.is_flipped = false
     }
+
+    // test
+    rl.DrawRectangleRec(eyeball_1_bounds, rl.RED)
+    rl.DrawRectangleRec(eyeball_2_bounds, rl.ORANGE)
+    rl.DrawRectangleRec(humanmade_btn_bounds, rl.RED)
 
     // mouse click
     if rl.IsMouseButtonPressed(.LEFT) {
@@ -459,6 +489,11 @@ game_update :: proc() {
     if rl.IsKeyPressed(.RIGHT_BRACKET) {
         level_load_by_index(current_level_index + 1)
     }
+}
+
+get_mouse_position :: proc () -> [2]f32 {
+    mouse_position := rl.GetMousePosition()
+    return mouse_position/ZOOM
 }
 
 move :: proc(en: ^Entity, dir: [2]int) -> bool {

@@ -446,9 +446,10 @@ game_update :: proc() {
     }
 
     // test
-    rl.DrawRectangleRec(eyeball_1_bounds, rl.RED)
-    rl.DrawRectangleRec(eyeball_2_bounds, rl.ORANGE)
-    rl.DrawRectangleRec(humanmade_btn_bounds, rl.RED)
+    // rl.DrawRectangleRec(eyeball_1_bounds, rl.RED)
+    // rl.DrawRectangleRec(eyeball_2_bounds, rl.ORANGE)
+    // rl.DrawRectangleRec(humanmade_btn_bounds, rl.RED)
+    // rl.DrawCircleV(mouse_position, 4, rl.RED)
 
     // mouse click
     if rl.IsMouseButtonPressed(.LEFT) {
@@ -493,6 +494,8 @@ game_update :: proc() {
 
 get_mouse_position :: proc () -> [2]f32 {
     mouse_position := rl.GetMousePosition()
+    rl.SetMouseOffset(-i32((f32(rl.GetScreenWidth()) - GAME_SCREEN_WIDTH*scale)*0.5), -i32((f32(rl.GetScreenHeight()) - GAME_SCREEN_HEIGHT*scale)*0.5))
+    rl.SetMouseScale(1/scale, 1/scale)
     return mouse_position/ZOOM
 }
 

@@ -335,7 +335,7 @@ draw :: proc() {
     // draw text and ui
     // :ui texture positions
     rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 20, 1.2, MY_BLACK)
-    rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 40}, 20, 1.2, MY_BLACK)
+    rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 42}, 20, 1.2, MY_BLACK)
     if level.layer_1.is_visible {
         rl.DrawTextureV(textures[.TEXTURE_visible], rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y-13}, rl.WHITE)
     }
@@ -451,29 +451,32 @@ game_update :: proc() {
     // rl.DrawRectangleRec(humanmade_btn_bounds, rl.RED)
     // rl.DrawCircleV(mouse_position, 4, rl.RED)
 
-    // mouse click
-    if rl.IsMouseButtonPressed(.LEFT) {
-        // toggle layer's visibility
-        if rl.CheckCollisionPointRec(mouse_position, eyeball_1_bounds) {
+    // toggle layer's visibility
+    if rl.CheckCollisionPointRec(mouse_position, eyeball_1_bounds) {
+        rl.DrawRectangleLinesEx(rl.Rectangle{eyeball_1_bounds.x+10, eyeball_1_bounds.y+5, 130, 30}, 2, MY_PURPLE)
+        if rl.IsMouseButtonPressed(.LEFT) {
             level.layer_1.is_visible = !level.layer_1.is_visible
             if !level.layer_1.is_visible && !level.layer_2.is_visible {
                 level.layer_2.is_visible = true
             } 
             rl.PlaySound(sfx_switch)
         }
-        if rl.CheckCollisionPointRec(mouse_position, eyeball_2_bounds) {
+    }
+    if rl.CheckCollisionPointRec(mouse_position, eyeball_2_bounds) {
+        rl.DrawRectangleLinesEx(rl.Rectangle{eyeball_2_bounds.x+10, eyeball_2_bounds.y+5, 130, 30}, 2, MY_PURPLE)
+        if rl.IsMouseButtonPressed(.LEFT) {
             level.layer_2.is_visible = !level.layer_2.is_visible
             if !level.layer_1.is_visible && !level.layer_2.is_visible {
                 level.layer_1.is_visible = true
             }
             rl.PlaySound(sfx_switch)
         }
+    }
 
-        // button
-        if rl.CheckCollisionPointRec(mouse_position, humanmade_btn_bounds) {
-            rl.OpenURL("https://brainmade.org")
-            rl.PlaySound(sfx_switch)
-        }
+    // button
+    if rl.CheckCollisionPointRec(mouse_position, humanmade_btn_bounds) {
+        rl.OpenURL("https://brainmade.org")
+        rl.PlaySound(sfx_switch)
     }
 
     is_completed = check_completion()

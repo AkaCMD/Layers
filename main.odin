@@ -37,6 +37,7 @@ sfx_footstep : rl.Sound
 sfx_pushbox : rl.Sound
 sfx_switch : rl.Sound
 sfx_activate : rl.Sound
+sfx_undo : rl.Sound
 
 offset := rl.Vector2{0, 0}
 mouse_position : rl.Vector2
@@ -124,9 +125,8 @@ get_layer_by_num :: proc(num: int) -> Layer {
     }
 }
 
-
-clone_layer :: proc(layer: Layer) -> Layer {
-    new_layer: Layer
+clone_layer :: proc(layer: ^Layer) -> ^Layer {
+    new_layer := new(Layer)
     new_layer.is_visible = layer.is_visible
     new_layer.order = layer.order
 
@@ -137,10 +137,10 @@ clone_layer :: proc(layer: Layer) -> Layer {
     return new_layer
 }
 
-clone_level :: proc(level: Level) -> Level {
+clone_level :: proc(level: ^Level) -> Level {
     new_level: Level
-    new_level.layer_1 = clone_layer(level.layer_1)
-    new_level.layer_2 = clone_layer(level.layer_2)
+    new_level.layer_1 = clone_layer(&level.layer_1)^
+    new_level.layer_2 = clone_layer(&level.layer_2)^
     return new_level
 }
 
@@ -258,8 +258,8 @@ main :: proc() {
     rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
     rl.InitWindow(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT, "Layers")
     rl.InitAudioDevice()
-    defer rl.CloseWindow()
     defer rl.CloseAudioDevice()
+    defer rl.CloseWindow()
 
     // Render texture initialization, used to hold the rendering result so we can easily resize it
     target = rl.LoadRenderTexture(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT)
@@ -309,9 +309,7 @@ main :: proc() {
         }
         rl.EndDrawing()
     }
-    delete(level.layer_1.entities)
-    delete(level.layer_2.entities)
-    rl.CloseWindow()
+    unload_game()
 }
 
 // :draw
@@ -404,7 +402,10 @@ get_move_input :: proc() {
     mouse_position = get_mouse_position()
     if input != .None {
         // push record to undo stack
-        append(&undo_stack, Record { clone_level(level), player.position })
+        record := new(Record, context.temp_allocator)
+        record.level = clone_level(&level)
+        record.player_position = player.position
+        append(&undo_stack, record^)
         rl.PlaySound(sfx_footstep)
     }
 }
@@ -432,6 +433,8 @@ game_init :: proc() {
     sfx_pushbox = rl.LoadSound("assets/audio/pushbox.ogg")
     sfx_switch = rl.LoadSound("assets/audio/switch.ogg")
     sfx_activate = rl.LoadSound("assets/audio/activate.ogg")
+    sfx_undo = rl.LoadSound("assets/audio/undo.ogg")
+    rl.SetSoundVolume(sfx_undo, 0.5)
 
     if ok := level_load_from_txt(1); ok {
         current_level_index = 1
@@ -464,6 +467,7 @@ init_ui_bounds :: proc () {
 
 // :update
 game_update :: proc() {
+    free_all(context.temp_allocator)
     get_move_input()
     #partial switch input {
         case .Up:
@@ -760,7 +764,16 @@ level_unload :: proc() {
     resize(&level.layer_1.entities, 0)
     resize(&level.layer_2.entities, 0)
     resize(&targets, 0)
+    resize(&undo_stack, 0)
+
     is_completed = false
+}
+
+unload_game :: proc() {
+    delete(level.layer_1.entities)
+    delete(level.layer_2.entities)
+    delete(undo_stack)
+    delete(targets)
 }
 
 level_load_by_index :: proc(index: int) {
@@ -783,6 +796,7 @@ undo :: proc() {
     if len(undo_stack) == 0 {
         return
     }
+    rl.PlaySound(sfx_undo)
     record := pop(&undo_stack)
     level = record.level
     player.position = record.player_position

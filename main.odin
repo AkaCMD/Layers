@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:strings"
 import "core:os"
 import "core:log"
+import "core:mem"
 
 // color palettes
 MY_YELLOW_BROWN :: rl.Color{221, 169, 99, 255}
@@ -247,7 +248,7 @@ main :: proc() {
         scale = min(f32(rl.GetScreenWidth())/f32(GAME_SCREEN_WIDTH),
                     f32(rl.GetScreenHeight())/f32(GAME_SCREEN_HEIGHT))
         
-        log.info("scale: ", scale)
+        // log.info("scale: ", scale)
                 
         init_ui_bounds()
         
@@ -281,6 +282,9 @@ main :: proc() {
         }
         rl.EndDrawing()
     }
+    delete(level.layer_1.entities)
+    delete(level.layer_2.entities)
+    rl.CloseWindow()
 }
 
 // :draw
@@ -649,7 +653,7 @@ check_completion :: proc() -> bool {
 level_load_from_txt :: proc(index: int) -> bool {
     setup_player(&player)
 
-    builder := strings.builder_make()
+    builder := strings.builder_make(context.temp_allocator)
 
     path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
     if l1_data, ok := os.read_entire_file_from_filename(path1, context.temp_allocator); ok {
@@ -685,7 +689,7 @@ level_load_layer_from_txt :: proc(layer_index: int, content: string) {
             fmt.printf("\n")
         }
 
-        en := new(Entity)
+        en := new(Entity, context.temp_allocator)
         en.position = {x, y}
         en.layer = layer_index
         x += 1
@@ -717,9 +721,9 @@ level_load_layer_from_txt :: proc(layer_index: int, content: string) {
 }
 
 level_unload :: proc() {
-    clear(&level.layer_1.entities)
-    clear(&level.layer_2.entities)
-    clear(&targets)
+    resize(&level.layer_1.entities, 0)
+    resize(&level.layer_2.entities, 0)
+    resize(&targets, 0)
     is_completed = false
 }
 

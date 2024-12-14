@@ -124,6 +124,26 @@ get_layer_by_num :: proc(num: int) -> Layer {
     }
 }
 
+
+clone_layer :: proc(layer: Layer) -> Layer {
+    new_layer: Layer
+    new_layer.is_visible = layer.is_visible
+    new_layer.order = layer.order
+
+    // Clone the dynamic array of entities
+    new_layer.entities = make([dynamic]Entity, len(layer.entities))
+    copy(new_layer.entities[:], layer.entities[:])
+
+    return new_layer
+}
+
+clone_level :: proc(level: Level) -> Level {
+    new_level: Level
+    new_level.layer_1 = clone_layer(level.layer_1)
+    new_level.layer_2 = clone_layer(level.layer_2)
+    return new_level
+}
+
 Level :: struct {
     layer_1: Layer,
     layer_2: Layer,
@@ -139,6 +159,13 @@ level := Level {
         order = 2,
     },
 }
+
+Record :: struct {
+    level: Level,
+    player_position: [2]int,
+}
+
+undo_stack : [dynamic]Record
 
 Input :: enum {
     None,
@@ -376,6 +403,8 @@ get_move_input :: proc() {
     }
     mouse_position = get_mouse_position()
     if input != .None {
+        // push record to undo stack
+        append(&undo_stack, Record { clone_level(level), player.position })
         rl.PlaySound(sfx_footstep)
     }
 }
@@ -490,6 +519,11 @@ game_update :: proc() {
     // R to reset
     if rl.IsKeyPressed(.R) {
         level_reload()
+    }
+
+    // Z to undo
+    if rl.IsKeyPressed(.Z) {
+        undo()
     }
 
     //  [] to switch level for test
@@ -743,4 +777,14 @@ level_reload :: proc() {
     level_unload()
     level_load_from_txt(current_level_index)
     log.info("reload")
+}
+
+undo :: proc() {
+    if len(undo_stack) == 0 {
+        return
+    }
+    record := pop(&undo_stack)
+    level = record.level
+    player.position = record.player_position
+    log.info("undo")
 }

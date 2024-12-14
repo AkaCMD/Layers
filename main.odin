@@ -338,8 +338,8 @@ draw :: proc() {
 
     // draw text and ui
     // :ui texture positions
-    rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 20, 1.2, MY_BLACK)
-    rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 42}, 20, 1.2, MY_BLACK)
+    rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 22, 1.2, MY_BLACK)
+    rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 42}, 22, 1.2, MY_BLACK)
     if level.layer_1.is_visible {
         rl.DrawTextureV(textures[.TEXTURE_visible], rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y-13}, rl.WHITE)
     }
@@ -385,7 +385,7 @@ game_init :: proc() {
     // load assets
     icon = rl.LoadImage("assets/icon.png")
     rl.SetWindowIcon(icon)
-    font = rl.LoadFont("assets/fonts/m6x11.ttf")
+    font = rl.LoadFont("assets/fonts/PixelifySans-Regular.ttf")
     textures[.TEXTURE_player] = rl.LoadTexture("assets/textures/duck.png")
     textures[.TEXTURE_cargo] = rl.LoadTexture("assets/textures/cargo.png")
     textures[.TEXTURE_wall] = rl.LoadTexture("assets/textures/wall.png")
@@ -479,8 +479,10 @@ game_update :: proc() {
 
     // button
     if rl.CheckCollisionPointRec(mouse_position, humanmade_btn_bounds) {
-        rl.OpenURL("https://brainmade.org")
-        rl.PlaySound(sfx_switch)
+        if rl.IsMouseButtonPressed(.LEFT) {
+            rl.OpenURL("https://brainmade.org")
+            rl.PlaySound(sfx_switch)
+        }
     }
 
     is_completed = check_completion()

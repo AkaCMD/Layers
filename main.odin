@@ -6,6 +6,7 @@ import "core:strings"
 import "core:os"
 import "core:log"
 import "core:mem"
+import vmem "core:mem/virtual"
 
 // color palettes
 MY_YELLOW_BROWN :: rl.Color{221, 169, 99, 255}
@@ -54,12 +55,18 @@ eyeball_2_bounds : rl.Rectangle
 humanmade_btn_bounds : rl.Rectangle
 
 Entity_Type :: enum u8 {
-    Player = '@',
-    Cargo = 'C',
-    Wall = '#',
-    Target = '*',
-    Flag = '>',
+    Player,
+    Cargo,
+    Wall,
+    Target,
+    Flag,
 }
+// Level Editor Symbols
+// Player => '@'
+// Cargo => 'C'
+// Wall => '#'
+// Target => '*'
+// Flag => '>'
 
 TextureID :: enum {
     TEXTURE_none,
@@ -75,6 +82,7 @@ TextureID :: enum {
     TEXTURE_reset,
     TEXTURE_undo,
     TEXTURE_humanmade,
+    TEXTURE_max,
 }
 
 textures: [TextureID]rl.Texture2D
@@ -126,12 +134,12 @@ get_layer_by_num :: proc(num: int) -> Layer {
 }
 
 clone_layer :: proc(layer: ^Layer) -> ^Layer {
-    new_layer := new(Layer)
+    new_layer := new(Layer, arena_allocator)
     new_layer.is_visible = layer.is_visible
     new_layer.order = layer.order
 
     // Clone the dynamic array of entities
-    new_layer.entities = make([dynamic]Entity, len(layer.entities))
+    new_layer.entities = make([dynamic]Entity, len(layer.entities), arena_allocator)
     copy(new_layer.entities[:], layer.entities[:])
 
     return new_layer
@@ -166,6 +174,9 @@ Record :: struct {
 }
 
 undo_stack : [dynamic]Record
+
+// Undo stack memory allocator
+arena_allocator: mem.Allocator
 
 Input :: enum {
     None,
@@ -254,6 +265,13 @@ main :: proc() {
             mem.tracking_allocator_destroy(&track)
         }
     }
+
+    arena := vmem.Arena {}
+    err := vmem.arena_init_growing(&arena)
+    if err != nil {
+        log.warn("ERR")
+    }
+    arena_allocator = vmem.arena_allocator(&arena)
 
     rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
     rl.InitWindow(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT, "Layers")
@@ -764,10 +782,7 @@ level_unload :: proc() {
     resize(&level.layer_1.entities, 0)
     resize(&level.layer_2.entities, 0)
     resize(&targets, 0)
-    for &record in undo_stack {
-        delete(record.level.layer_1.entities)
-        delete(record.level.layer_2.entities)
-    }
+    free_all(arena_allocator)
     resize(&undo_stack, 0)
 
     is_completed = false
@@ -805,4 +820,6 @@ undo :: proc() {
     level = record.level
     player.position = record.player_position
     log.info("undo")
+    delete(record.level.layer_1.entities)
+    delete(record.level.layer_2.entities)
 }

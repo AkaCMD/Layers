@@ -82,7 +82,6 @@ TextureID :: enum {
     TEXTURE_reset,
     TEXTURE_undo,
     TEXTURE_humanmade,
-    TEXTURE_max,
 }
 
 textures: [TextureID]rl.Texture2D
@@ -614,6 +613,9 @@ can_move_to :: proc(entity_in_l1: ^Entity, entity_in_l2: ^Entity) -> bool {
 
 try_move_cargo :: proc(entity: ^Entity, dir: [2]int, en: ^Entity, target_pos: [2]int, box: ^Entity) -> bool {
     if entity != nil && entity.type == .Cargo {
+        if !is_within_bounds(entity.position + dir) {
+            return false // Out of bounds, do nothing
+        }
         if  en_1, en_2 := find_non_overlap_entities_in_positon(entity.position + dir); (en_1 == nil) && (en_2 == nil) {
             update_position(en, target_pos, box)
             entity.position += dir 
@@ -738,35 +740,38 @@ level_load_from_txt :: proc(index: int) -> bool {
 level_load_layer_from_txt :: proc(layer_index: int, content: string) {
     x := 0
     y := 0
-    // print level
+
     fmt.printf("\nlayer %d:\n", layer_index)
     for char in content {
+        // print the level
         if char != '\n' {
             fmt.printf("%c", char)
         } else {
             fmt.printf("\n")
         }
 
+        // calculate the x, y coordinates
+        if char == ' ' {
+            x += 1
+            continue
+        } else if char == '\n' {
+            y += 1
+            x = -1
+            continue
+        } else {
+            x += 1
+        }
+
         en := new(Entity, context.temp_allocator)
         en.position = {x, y}
         en.layer = layer_index
-        x += 1
         switch char {
-            case '@':
-                setup_player(en)
-            case 'C':
-                setup_cargo(en)
-            case '#':
-                setup_wall(en)
-            case '*':
-                setup_target(en)
-            case '>':
-                setup_flag(en)
-            case ' ': // empty
-                continue
-            case '\n':
-                y += 1
-                x = 0
+            case '@':   setup_player(en)
+            case 'C':   setup_cargo(en)
+            case '#':   setup_wall(en)
+            case '*':   setup_target(en)
+            case '>':   setup_flag(en)
+            case:       continue
         }
         if layer_index == 1 {
             append(&level.layer_1.entities, en^)

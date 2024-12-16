@@ -54,7 +54,7 @@ current_level_index: int
 // UI
 eyeball_1_bounds: rl.Rectangle
 eyeball_2_bounds: rl.Rectangle
-humanmade_btn_bounds: rl.Rectangle
+// humanmade_btn_bounds: rl.Rectangle
 
 Entity_Type :: enum u8 {
 	Player,
@@ -261,12 +261,12 @@ main :: proc() {
 
 	arena := vmem.Arena{}
 	if err := vmem.arena_init_growing(&arena); err != nil {
-        log.warn("Init arena failed.")
-    }
+		log.warn("Init arena failed.")
+	}
 	arena_allocator = vmem.arena_allocator(&arena)
 
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
-	rl.InitWindow(GAME_SCREEN_WIDTH*RATIO, GAME_SCREEN_HEIGHT*RATIO, "Layers")
+	rl.InitWindow(GAME_SCREEN_WIDTH * RATIO, GAME_SCREEN_HEIGHT * RATIO, "Layers")
 	rl.InitAudioDevice()
 	defer rl.CloseAudioDevice()
 	defer rl.CloseWindow()
@@ -285,7 +285,7 @@ main :: proc() {
 
 	for !rl.WindowShouldClose() {
 		rl.UpdateMusicStream(bgm)
-        scale = RATIO
+		scale = RATIO
 		scale = min(
 			f32(rl.GetScreenWidth()) / f32(GAME_SCREEN_WIDTH),
 			f32(rl.GetScreenHeight()) / f32(GAME_SCREEN_HEIGHT),
@@ -461,11 +461,12 @@ draw :: proc() {
 	rl.DrawTexture(textures[.TEXTURE_move], 645, height, rl.WHITE)
 	rl.DrawTexture(textures[.TEXTURE_undo], 645, height + 110, rl.WHITE)
 	rl.DrawTexture(textures[.TEXTURE_reset], 645 + 64, height + 110, rl.WHITE)
-	rl.DrawTextureV(
-		textures[.TEXTURE_humanmade],
-		rl.Vector2{humanmade_btn_bounds.x, humanmade_btn_bounds.y},
-		rl.WHITE,
-	)
+	// rl.DrawTextureV(
+	// 	textures[.TEXTURE_humanmade],
+	// 	rl.Vector2{humanmade_btn_bounds.x, humanmade_btn_bounds.y},
+	// 	rl.WHITE,
+	// )
+	rl.DrawTextEx(font, "by cmd", rl.Vector2{665, 606}, 32, 1.2, MY_BLACK)
 }
 
 get_move_input :: proc() {
@@ -538,12 +539,12 @@ init_ui_bounds :: proc() {
 		f32(textures[.TEXTURE_visible].height / 2),
 	}
 
-	humanmade_btn_bounds = rl.Rectangle {
-		682,
-		606,
-		f32(textures[.TEXTURE_humanmade].width),
-		f32(textures[.TEXTURE_humanmade].height),
-	}
+	// humanmade_btn_bounds = rl.Rectangle {
+	// 	682,
+	// 	606,
+	// 	f32(textures[.TEXTURE_humanmade].width),
+	// 	f32(textures[.TEXTURE_humanmade].height),
+	// }
 }
 
 // :update
@@ -600,12 +601,12 @@ game_update :: proc() {
 	}
 
 	// button
-	if rl.CheckCollisionPointRec(mouse_position, humanmade_btn_bounds) {
-		if rl.IsMouseButtonPressed(.LEFT) {
-			rl.OpenURL("https://brainmade.org")
-			rl.PlaySound(sfx_switch)
-		}
-	}
+	// if rl.CheckCollisionPointRec(mouse_position, humanmade_btn_bounds) {
+	// 	if rl.IsMouseButtonPressed(.LEFT) {
+	// 		rl.OpenURL("https://brainmade.org")
+	// 		rl.PlaySound(sfx_switch)
+	// 	}
+	// }
 
 	is_completed = check_completion()
 

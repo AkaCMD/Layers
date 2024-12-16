@@ -910,13 +910,15 @@ unload_game :: proc() {
 	delete(targets)
 }
 
-level_load_by_index :: proc(index: int) {
+level_load_by_index :: proc(index: int) -> bool {
 	level_unload()
 	if ok := level_load_from_txt(index); ok {
 		current_level_index = index
+		return true
 	} else {
 		level_load_from_txt(current_level_index)
 		log.warn("Load level failed.")
+		return false
 	}
 }
 
@@ -949,4 +951,10 @@ show_tip :: proc(text: cstring) {
 	rl.DrawRectangleRounded(bounds, 0.3, 10, rl.RAYWHITE)
 	rl.DrawRectangleRoundedLinesEx(bounds, 0.3, 20, 2, MY_ORANGE)
 	rl.DrawTextEx(font, text, rl.Vector2{x + padding_x, y + padding_y}, 22, 1, MY_BLACK)
+}
+
+congratulations :: proc() {
+	x: f32 = 5
+	y: f32 = 5
+	rl.DrawTextEx(font, "Congratulations!", rl.Vector2{300, 300}, 30, 1, MY_YELLOW)
 }

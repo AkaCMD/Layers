@@ -86,6 +86,7 @@ TextureID :: enum {
 	TEXTURE_reset,
 	TEXTURE_undo,
 	TEXTURE_humanmade,
+	TEXTURE_chain,
 }
 
 textures: [TextureID]rl.Texture2D
@@ -432,6 +433,11 @@ draw :: proc() {
 	// :ui texture positions
 	rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 22, 1.2, MY_BLACK)
 	rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 42}, 22, 1.2, MY_BLACK)
+	rl.DrawTextureV(
+		textures[.TEXTURE_chain],
+		rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 28},
+		rl.Color{255, 255, 255, 150},
+	)
 	if level.layer_1.is_visible {
 		rl.DrawTextureV(
 			textures[.TEXTURE_visible],
@@ -516,6 +522,7 @@ game_init :: proc() {
 	textures[.TEXTURE_reset] = rl.LoadTexture("assets/textures/reset.png")
 	textures[.TEXTURE_undo] = rl.LoadTexture("assets/textures/undo.png")
 	textures[.TEXTURE_humanmade] = rl.LoadTexture("assets/textures/88x31-light.png")
+	textures[.TEXTURE_chain] = rl.LoadTexture("assets/textures/chain.png")
 
 	bgm = rl.LoadMusicStream("assets/audio/bgm.wav")
 	sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")

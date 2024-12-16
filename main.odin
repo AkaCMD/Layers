@@ -477,7 +477,7 @@ draw :: proc() {
 	rl.DrawTextEx(font, "by cmd", rl.Vector2{665, 606}, 32, 1.2, MY_BLACK)
 	if should_show_tip {
 		show_tip(
-			"Hi! You can click on upper left corner's eyeball\nto toggle the visibility of layers:]",
+			"Hi! You can click on upper right corner's eyeball\nto toggle the visibility of layers:]",
 		)
 	}
 }

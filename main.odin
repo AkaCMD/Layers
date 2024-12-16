@@ -26,6 +26,7 @@ LEVEL_SIZE :: 960
 GRID_COUNT :: 10
 GRID_SIZE :: LEVEL_SIZE / (GRID_COUNT * ZOOM)
 MAX_ENTITIES_COUNT :: 300
+RATIO :: 0.8
 
 HALF_ALPHA_VALUE :: u8(150)
 
@@ -258,14 +259,13 @@ main :: proc() {
 	}
 
 	arena := vmem.Arena{}
-	err := vmem.arena_init_growing(&arena)
-	if err != nil {
-		log.warn("ERR")
-	}
+	if err := vmem.arena_init_growing(&arena); err != nil {
+        log.warn("Init arena failed.")
+    }
 	arena_allocator = vmem.arena_allocator(&arena)
 
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
-	rl.InitWindow(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT, "Layers")
+	rl.InitWindow(GAME_SCREEN_WIDTH*RATIO, GAME_SCREEN_HEIGHT*RATIO, "Layers")
 	rl.InitAudioDevice()
 	defer rl.CloseAudioDevice()
 	defer rl.CloseWindow()
@@ -281,6 +281,7 @@ main :: proc() {
 	camera.zoom = ZOOM
 
 	for !rl.WindowShouldClose() {
+        scale = RATIO
 		scale = min(
 			f32(rl.GetScreenWidth()) / f32(GAME_SCREEN_WIDTH),
 			f32(rl.GetScreenHeight()) / f32(GAME_SCREEN_HEIGHT),

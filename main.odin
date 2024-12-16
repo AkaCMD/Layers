@@ -41,6 +41,7 @@ sfx_pushbox: rl.Sound
 sfx_switch: rl.Sound
 sfx_activate: rl.Sound
 sfx_undo: rl.Sound
+sfx_complete: rl.Sound
 
 offset := rl.Vector2{0, 0}
 mouse_position: rl.Vector2
@@ -49,6 +50,7 @@ targets: [dynamic]Entity
 font: rl.Font
 
 is_completed: bool
+should_show_tip: bool = true
 current_level_index: int
 
 // UI
@@ -467,6 +469,11 @@ draw :: proc() {
 	// 	rl.WHITE,
 	// )
 	rl.DrawTextEx(font, "by cmd", rl.Vector2{665, 606}, 32, 1.2, MY_BLACK)
+	if should_show_tip {
+		show_tip(
+			"Hi! You can click on upper left corner's eyeball\nto toggle the visibility of layers:]",
+		)
+	}
 }
 
 get_move_input :: proc() {
@@ -516,6 +523,7 @@ game_init :: proc() {
 	sfx_switch = rl.LoadSound("assets/audio/switch.ogg")
 	sfx_activate = rl.LoadSound("assets/audio/activate.ogg")
 	sfx_undo = rl.LoadSound("assets/audio/undo.ogg")
+	sfx_complete = rl.LoadSound("assets/audio/complete.ogg")
 	rl.SetSoundVolume(sfx_undo, 0.5)
 
 	if ok := level_load_from_txt(1); ok {
@@ -578,6 +586,7 @@ game_update :: proc() {
 			MY_PURPLE,
 		)
 		if rl.IsMouseButtonPressed(.LEFT) {
+			should_show_tip = false
 			level.layer_1.is_visible = !level.layer_1.is_visible
 			if !level.layer_1.is_visible && !level.layer_2.is_visible {
 				level.layer_2.is_visible = true
@@ -592,6 +601,7 @@ game_update :: proc() {
 			MY_PURPLE,
 		)
 		if rl.IsMouseButtonPressed(.LEFT) {
+			should_show_tip = false
 			level.layer_2.is_visible = !level.layer_2.is_visible
 			if !level.layer_1.is_visible && !level.layer_2.is_visible {
 				level.layer_1.is_visible = true
@@ -613,6 +623,7 @@ game_update :: proc() {
 	// R to reset
 	if rl.IsKeyPressed(.R) {
 		level_reload()
+		rl.PlaySound(sfx_undo)
 	}
 
 	// Z to undo
@@ -790,6 +801,7 @@ check_completion :: proc() -> bool {
 	en_1, en_2 := find_entities_in_position(player.position)
 	if (en_1 != nil && en_1.type == .Flag) || (en_2 != nil && en_2.type == .Flag) {
 		log.info("Load next level!")
+		rl.PlaySound(sfx_complete)
 		level_load_by_index(current_level_index + 1)
 	}
 	return true
@@ -918,4 +930,16 @@ undo :: proc() {
 	log.info("undo")
 	delete(record.level.layer_1.entities)
 	delete(record.level.layer_2.entities)
+}
+
+// :tip
+show_tip :: proc(text: cstring) {
+	x: f32 = 5
+	y: f32 = 5
+	padding_x: f32 = 5
+	padding_y: f32 = 3
+	bounds := rl.Rectangle{x, y, 460, 54}
+	rl.DrawRectangleRounded(bounds, 0.3, 10, rl.RAYWHITE)
+	rl.DrawRectangleRoundedLinesEx(bounds, 0.3, 20, 2, MY_ORANGE)
+	rl.DrawTextEx(font, text, rl.Vector2{x + padding_x, y + padding_y}, 22, 1, MY_BLACK)
 }

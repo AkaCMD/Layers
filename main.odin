@@ -873,7 +873,6 @@ level_unload :: proc() {
 	resize(&level.layer_1.entities, 0)
 	resize(&level.layer_2.entities, 0)
 	resize(&targets, 0)
-	free_all(arena_allocator)
 	resize(&undo_stack, 0)
 
 	is_completed = false

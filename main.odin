@@ -34,7 +34,8 @@ HALF_ALPHA_VALUE :: u8(150)
 target: rl.RenderTexture2D
 scale: f32
 
-// SFX
+// audio
+bgm: rl.Music
 sfx_footstep: rl.Sound
 sfx_pushbox: rl.Sound
 sfx_switch: rl.Sound
@@ -276,11 +277,14 @@ main :: proc() {
 
 	rl.SetTargetFPS(60)
 	game_init()
+	rl.PlayMusicStream(bgm)
+	defer rl.UnloadAudioStream(bgm)
 
 	camera: rl.Camera2D
 	camera.zoom = ZOOM
 
 	for !rl.WindowShouldClose() {
+		rl.UpdateMusicStream(bgm)
         scale = RATIO
 		scale = min(
 			f32(rl.GetScreenWidth()) / f32(GAME_SCREEN_WIDTH),
@@ -505,6 +509,7 @@ game_init :: proc() {
 	textures[.TEXTURE_undo] = rl.LoadTexture("assets/textures/undo.png")
 	textures[.TEXTURE_humanmade] = rl.LoadTexture("assets/textures/88x31-light.png")
 
+	bgm = rl.LoadMusicStream("assets/audio/bgm.wav")
 	sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")
 	sfx_pushbox = rl.LoadSound("assets/audio/pushbox.ogg")
 	sfx_switch = rl.LoadSound("assets/audio/switch.ogg")

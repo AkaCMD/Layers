@@ -8,9 +8,6 @@ import "core:os"
 import "core:strings"
 import rl "vendor:raylib"
 
-// different OS has different WD
-working_directory: string
-
 // color palettes
 MY_YELLOW_BROWN :: rl.Color{221, 169, 99, 255}
 MY_BROWN :: rl.Color{201, 129, 75, 255}
@@ -236,7 +233,9 @@ setup_target :: proc(en: ^Entity) {
 }
 
 main :: proc() {
-	working_directory = string(rl.GetWorkingDirectory())
+	// Change working directory
+	// For macos, the default directory is not application directory
+	rl.ChangeDirectory(rl.GetApplicationDirectory())
 	// Init logger
 	logger := log.create_console_logger()
 	context.logger = logger
@@ -505,203 +504,30 @@ get_move_input :: proc() {
 // :init
 game_init :: proc() {
 	// load assets
-	icon = rl.LoadImage(
-		strings.clone_to_cstring(
-			strings.concatenate({working_directory, "/assets/icon.png"}, context.temp_allocator),
-			context.temp_allocator,
-		),
-	)
+	icon = rl.LoadImage("assets/icon.png")
 	rl.SetWindowIcon(icon)
-	font = rl.LoadFont(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/fonts/PixelifySans-Regular.ttf"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_player] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/duck.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_cargo] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/cargo.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_wall] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/wall.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_flag_ok] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/flag_ok.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_flag_no] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/flag_no.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_target] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/target.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_visible] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/visible.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_invisible] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/invisible.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_move] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/move.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_reset] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/reset.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_undo] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/undo.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_humanmade] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/88x31-light.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	textures[.TEXTURE_chain] = rl.LoadTexture(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/textures/chain.png"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
+	font = rl.LoadFont("assets/fonts/PixelifySans-Regular.ttf")
+	textures[.TEXTURE_player] = rl.LoadTexture("assets/textures/duck.png")
+	textures[.TEXTURE_cargo] = rl.LoadTexture("assets/textures/cargo.png")
+	textures[.TEXTURE_wall] = rl.LoadTexture("assets/textures/wall.png")
+	textures[.TEXTURE_flag_ok] = rl.LoadTexture("assets/textures/flag_ok.png")
+	textures[.TEXTURE_flag_no] = rl.LoadTexture("assets/textures/flag_no.png")
+	textures[.TEXTURE_target] = rl.LoadTexture("assets/textures/target.png")
+	textures[.TEXTURE_visible] = rl.LoadTexture("assets/textures/visible.png")
+	textures[.TEXTURE_invisible] = rl.LoadTexture("assets/textures/invisible.png")
+	textures[.TEXTURE_move] = rl.LoadTexture("assets/textures/move.png")
+	textures[.TEXTURE_reset] = rl.LoadTexture("assets/textures/reset.png")
+	textures[.TEXTURE_undo] = rl.LoadTexture("assets/textures/undo.png")
+	textures[.TEXTURE_humanmade] = rl.LoadTexture("assets/textures/88x31-light.png")
+	textures[.TEXTURE_chain] = rl.LoadTexture("assets/textures/chain.png")
 
-	bgm = rl.LoadMusicStream(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/audio/bgm.wav"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	sfx_footstep = rl.LoadSound(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/audio/footstep.ogg"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	sfx_pushbox = rl.LoadSound(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/audio/pushbox.ogg"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	sfx_switch = rl.LoadSound(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/audio/switch.ogg"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	sfx_activate = rl.LoadSound(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/audio/activate.ogg"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	sfx_undo = rl.LoadSound(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/audio/undo.ogg"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
-	sfx_complete = rl.LoadSound(
-		strings.clone_to_cstring(
-			strings.concatenate(
-				{working_directory, "/assets/audio/complete.ogg"},
-				context.temp_allocator,
-			),
-			context.temp_allocator,
-		),
-	)
+	bgm = rl.LoadMusicStream("assets/audio/bgm.wav")
+	sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")
+	sfx_pushbox = rl.LoadSound("assets/audio/pushbox.ogg")
+	sfx_switch = rl.LoadSound("assets/audio/switch.ogg")
+	sfx_activate = rl.LoadSound("assets/audio/activate.ogg")
+	sfx_undo = rl.LoadSound("assets/audio/undo.ogg")
+	sfx_complete = rl.LoadSound("assets/audio/complete.ogg")
 	rl.SetSoundVolume(sfx_undo, 0.5)
 
 	if ok := level_load_from_txt(1); ok {
@@ -780,7 +606,7 @@ game_update :: proc() {
 			rl.PlaySound(sfx_switch)
 		}
 	}
-
+	
 	is_completed = check_completion()
 
 	// R to reset
@@ -976,11 +802,8 @@ level_load_from_txt :: proc(index: int) -> bool {
 
 	builder := strings.builder_make(context.temp_allocator)
 
-	path1 := fmt.sbprintf(&builder, "/assets/levels/%d-l1.txt", index)
-	if l1_data, ok := os.read_entire_file_from_filename(
-		strings.concatenate({working_directory, path1}, context.temp_allocator),
-		context.temp_allocator,
-	); ok {
+	path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
+	if l1_data, ok := os.read_entire_file_from_filename(path1, context.temp_allocator); ok {
 		level_load_layer_from_txt(1, string(l1_data))
 		log.infof("Loaded level%d layer1!", index)
 	} else {
@@ -990,11 +813,8 @@ level_load_from_txt :: proc(index: int) -> bool {
 
 	strings.builder_reset(&builder)
 
-	path2 := fmt.sbprintf(&builder, "/assets/levels/%d-l2.txt", index)
-	if l2_data, ok := os.read_entire_file_from_filename(
-		strings.concatenate({working_directory, path2}, context.temp_allocator),
-		context.temp_allocator,
-	); ok {
+	path2 := fmt.sbprintf(&builder, "assets/levels/%d-l2.txt", index)
+	if l2_data, ok := os.read_entire_file_from_filename(path2, context.temp_allocator); ok {
 		level_load_layer_from_txt(2, string(l2_data))
 		log.infof("Loaded level%d layer2!", index)
 	} else {

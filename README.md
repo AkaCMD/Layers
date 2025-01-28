@@ -16,5 +16,4 @@ Feishiko's Ascii Map Editor for level editor
 ChipTone and bfxr for SFX, BeepBox for BGM  
 Aseprite for pixel art  
 Button Click SFX and push SFX are free assets from KennyNL
-
-Top secret: you can make custom levels using https://feishiko.itch.io/ascii-map-editor
+Web build template: [odin-raylib-web](https://github.com/karl-zylinski/odin-raylib-web)

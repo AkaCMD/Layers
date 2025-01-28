@@ -8,3 +8,5 @@ ols.json
 
 .vscode
 .idea
+
+build/

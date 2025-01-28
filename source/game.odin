@@ -1,10 +1,9 @@
 package game
 
+import "core:c"
 import "core:fmt"
 import "core:log"
 import "core:mem"
-import vmem "core:mem/virtual"
-import "core:os"
 import "core:strings"
 import rl "vendor:raylib"
 
@@ -56,6 +55,10 @@ current_level_index: int
 // UI
 eyeball_1_bounds: rl.Rectangle
 eyeball_2_bounds: rl.Rectangle
+
+run: bool
+camera: rl.Camera2D
+logger: log.Logger
 
 Entity_Type :: enum u8 {
 	Player,
@@ -232,14 +235,14 @@ setup_target :: proc(en: ^Entity) {
 	append(&targets, en^)
 }
 
-main :: proc() {
+init :: proc() {
+	run = true
 	// Change working directory
 	// For macos, the default directory is not application directory
 	rl.ChangeDirectory(rl.GetApplicationDirectory())
 	// Init logger
-	logger := log.create_console_logger()
+	logger = log.create_console_logger()
 	context.logger = logger
-	defer log.destroy_console_logger(logger)
 
 	// any memory leaks?
 	when ODIN_DEBUG {
@@ -264,17 +267,13 @@ main :: proc() {
 		}
 	}
 
-	arena := vmem.Arena{}
-	if err := vmem.arena_init_growing(&arena); err != nil {
-		log.warn("Init arena failed.")
-	}
-	arena_allocator = vmem.arena_allocator(&arena)
+	arena := mem.Arena{}
+	mem.arena_init(&arena, make([]byte, 10000))
+	arena_allocator = mem.arena_allocator(&arena)
 
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
 	rl.InitWindow(GAME_SCREEN_WIDTH * RATIO, GAME_SCREEN_HEIGHT * RATIO, "Layers")
 	rl.InitAudioDevice()
-	defer rl.CloseAudioDevice()
-	defer rl.CloseWindow()
 
 	// Render texture initialization, used to hold the rendering result so we can easily resize it
 	target = rl.LoadRenderTexture(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT)
@@ -283,54 +282,75 @@ main :: proc() {
 	rl.SetTargetFPS(60)
 	game_init()
 	rl.PlayMusicStream(bgm)
-	defer rl.UnloadAudioStream(bgm)
 
-	camera: rl.Camera2D
 	camera.zoom = ZOOM
+}
 
-	for !rl.WindowShouldClose() {
-		rl.UpdateMusicStream(bgm)
-		scale = RATIO
-		scale = min(
-			f32(rl.GetScreenWidth()) / f32(GAME_SCREEN_WIDTH),
-			f32(rl.GetScreenHeight()) / f32(GAME_SCREEN_HEIGHT),
-		)
+update :: proc() {
+	rl.ClearBackground(rl.RAYWHITE)
+	rl.UpdateMusicStream(bgm)
+	scale = RATIO
+	scale = min(
+		f32(rl.GetScreenWidth()) / f32(GAME_SCREEN_WIDTH),
+		f32(rl.GetScreenHeight()) / f32(GAME_SCREEN_HEIGHT),
+	)
 
-		// log.info("scale: ", scale)
+	init_ui_bounds()
 
-		init_ui_bounds()
-
-		rl.BeginTextureMode(target)
+	rl.BeginTextureMode(target)
+	{
+		rl.BeginMode2D(camera)
 		{
-			rl.BeginMode2D(camera)
-			{
-				game_update()
-				draw()
-			}
-			rl.EndMode2D()
+			game_update()
+			draw()
 		}
-		rl.EndTextureMode()
-
-		// Draw scaled content to screen
-		rl.BeginDrawing()
-		{
-			// Calculate destination rectangle for scaled drawing
-			dest := rl.Rectangle {
-				(f32(rl.GetScreenWidth()) - f32(GAME_SCREEN_WIDTH) * scale) * 0.5,
-				(f32(rl.GetScreenHeight()) - f32(GAME_SCREEN_HEIGHT) * scale) * 0.5,
-				f32(GAME_SCREEN_WIDTH) * scale,
-				f32(GAME_SCREEN_HEIGHT) * scale,
-			}
-
-			// Draw render texture to screen, properly scaled
-			source := rl.Rectangle{0, 0, f32(target.texture.width), f32(-target.texture.height)}
-			origin := rl.Vector2{0, 0}
-
-			rl.DrawTexturePro(target.texture, source, dest, origin, 0.0, rl.WHITE)
-		}
-		rl.EndDrawing()
+		rl.EndMode2D()
 	}
-	unload_game()
+	rl.EndTextureMode()
+
+	// Draw scaled content to screen
+	rl.BeginDrawing()
+	{
+		// Calculate destination rectangle for scaled drawing
+		dest := rl.Rectangle {
+			(f32(rl.GetScreenWidth()) - f32(GAME_SCREEN_WIDTH) * scale) * 0.5,
+			(f32(rl.GetScreenHeight()) - f32(GAME_SCREEN_HEIGHT) * scale) * 0.5,
+			f32(GAME_SCREEN_WIDTH) * scale,
+			f32(GAME_SCREEN_HEIGHT) * scale,
+		}
+
+		// Draw render texture to screen, properly scaled
+		source := rl.Rectangle{0, 0, f32(target.texture.width), f32(-target.texture.height)}
+		origin := rl.Vector2{0, 0}
+
+		rl.DrawTexturePro(target.texture, source, dest, origin, 0.0, rl.WHITE)
+	}
+	rl.EndDrawing()
+	free_all(context.temp_allocator)
+}
+
+// In a web build, this is called when browser changes size. Remove the
+// `rl.SetWindowSize` call if you don't want a resizable game.
+parent_window_size_changed :: proc(w, h: int) {
+	rl.SetWindowSize(c.int(w), c.int(h))
+}
+
+shutdown :: proc() {
+	log.destroy_console_logger(logger)
+	rl.CloseAudioDevice()
+	rl.UnloadAudioStream(bgm)
+	rl.CloseWindow()
+}
+
+should_run :: proc() -> bool {
+	when ODIN_OS != .JS {
+		// Never run this proc in browser. It contains a 16 ms sleep on web!
+		if rl.WindowShouldClose() {
+			run = false
+		}
+	}
+
+	return run
 }
 
 // :draw
@@ -554,7 +574,6 @@ init_ui_bounds :: proc() {
 
 // :update
 game_update :: proc() {
-	free_all(context.temp_allocator)
 	get_move_input()
 	#partial switch input {
 	case .Up:
@@ -568,12 +587,6 @@ game_update :: proc() {
 		move(&player, {1, 0})
 		player.is_flipped = false
 	}
-
-	// test
-	// rl.DrawRectangleRec(eyeball_1_bounds, rl.RED)
-	// rl.DrawRectangleRec(eyeball_2_bounds, rl.ORANGE)
-	// rl.DrawRectangleRec(humanmade_btn_bounds, rl.RED)
-	// rl.DrawCircleV(mouse_position, 4, rl.RED)
 
 	// toggle layer's visibility
 	if rl.CheckCollisionPointRec(mouse_position, eyeball_1_bounds) {
@@ -606,7 +619,7 @@ game_update :: proc() {
 			rl.PlaySound(sfx_switch)
 		}
 	}
-	
+
 	is_completed = check_completion()
 
 	// R to reset
@@ -630,7 +643,7 @@ game_update :: proc() {
 }
 
 get_mouse_position :: proc() -> [2]f32 {
-	mouse_position := rl.GetMousePosition()
+	mouse_position = rl.GetMousePosition()
 	rl.SetMouseOffset(
 		-i32((f32(rl.GetScreenWidth()) - GAME_SCREEN_WIDTH * scale) * 0.5),
 		-i32((f32(rl.GetScreenHeight()) - GAME_SCREEN_HEIGHT * scale) * 0.5),
@@ -803,7 +816,7 @@ level_load_from_txt :: proc(index: int) -> bool {
 	builder := strings.builder_make(context.temp_allocator)
 
 	path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
-	if l1_data, ok := os.read_entire_file_from_filename(path1, context.temp_allocator); ok {
+	if l1_data, ok := read_entire_file(path1, context.temp_allocator); ok {
 		level_load_layer_from_txt(1, string(l1_data))
 		log.infof("Loaded level%d layer1!", index)
 	} else {
@@ -814,7 +827,7 @@ level_load_from_txt :: proc(index: int) -> bool {
 	strings.builder_reset(&builder)
 
 	path2 := fmt.sbprintf(&builder, "assets/levels/%d-l2.txt", index)
-	if l2_data, ok := os.read_entire_file_from_filename(path2, context.temp_allocator); ok {
+	if l2_data, ok := read_entire_file(path2, context.temp_allocator); ok {
 		level_load_layer_from_txt(2, string(l2_data))
 		log.infof("Loaded level%d layer2!", index)
 	} else {
@@ -936,7 +949,5 @@ show_tip :: proc(text: cstring) {
 }
 
 congratulations :: proc() {
-	x: f32 = 5
-	y: f32 = 5
 	rl.DrawTextEx(font, "Congratulations!", rl.Vector2{300, 300}, 30, 1, MY_YELLOW)
 }

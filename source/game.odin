@@ -60,6 +60,10 @@ run: bool
 camera: rl.Camera2D
 logger: log.Logger
 
+// Undo stack memory allocator
+arena_allocator: mem.Allocator
+arena: mem.Arena
+
 Entity_Type :: enum u8 {
 	Player,
 	Cargo,
@@ -173,9 +177,6 @@ Record :: struct {
 
 undo_stack: [dynamic]Record
 
-// Undo stack memory allocator
-arena_allocator: mem.Allocator
-
 Input :: enum {
 	None,
 	Up,
@@ -267,8 +268,8 @@ init :: proc() {
 		}
 	}
 
-	arena := mem.Arena{}
-	mem.arena_init(&arena, make([]byte, 10000))
+	arena = mem.Arena{}
+	mem.arena_init(&arena, make([]byte, 6_000_000))
 	arena_allocator = mem.arena_allocator(&arena)
 
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})

@@ -288,7 +288,7 @@ init :: proc() {
 }
 
 update :: proc() {
-	rl.ClearBackground(rl.RAYWHITE)
+	rl.ClearBackground(MY_GREY)
 	rl.UpdateMusicStream(bgm)
 	scale = RATIO
 	scale = min(

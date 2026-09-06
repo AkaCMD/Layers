@@ -143,3 +143,214 @@ show_tip :: proc(text: cstring) {
 congratulations :: proc() {
 	rl.DrawTextEx(font, "Congratulations!", rl.Vector2{300, 300}, 30, 1, MY_YELLOW)
 }
+
+// :overview
+// Special view that shows every layer on its own, the stacked result, and the
+// player's live position. Toggled with Tab.
+visible_entities_sorted :: proc() -> [dynamic]^Entity {
+	result := make([dynamic]^Entity, 0, context.temp_allocator)
+	for &en in world.entities {
+		if !layer_is_active(en.layer) {
+			continue
+		}
+		append(&result, &en)
+	}
+	slice.stable_sort_by(result[:], proc(a, b: ^Entity) -> bool {
+		return entity_draw_order(a) < entity_draw_order(b)
+	})
+	return result
+}
+
+entities_on_layer :: proc(layer: int) -> [dynamic]^Entity {
+	result := make([dynamic]^Entity, 0, context.temp_allocator)
+	for &en in world.entities {
+		if en.layer == layer {
+			append(&result, &en)
+		}
+	}
+	return result
+}
+
+draw_scaled_entity :: proc(en: ^Entity, origin: rl.Vector2, cell: f32) {
+	if en.type == .Flag {
+		if is_completed {
+			en.texture = .Flag_Ok
+		} else {
+			en.texture = .Flag_No
+		}
+	}
+
+	rect := atlas_textures[en.texture].rect
+	source := rect
+	if en.type == .Player && en.is_flipped {
+		source.width = -source.width
+	}
+	rl.DrawTexturePro(
+		atlas,
+		source,
+		rl.Rectangle {
+			origin.x + f32(en.position.x) * cell,
+			origin.y + f32(en.position.y) * cell,
+			cell,
+			cell,
+		},
+		rl.Vector2(0),
+		0,
+		rl.WHITE,
+	)
+}
+
+draw_panel :: proc(origin: rl.Vector2, cell: f32, entities: [dynamic]^Entity, dim: bool) {
+	size := cell * f32(GRID_COUNT)
+
+	rl.DrawRectangleRec(rl.Rectangle{origin.x, origin.y, size, size}, rl.RAYWHITE)
+
+	for i := 0; i <= GRID_COUNT; i += 1 {
+		line_color := rl.Color{MY_GREY.r, MY_GREY.g, MY_GREY.b, 80}
+		rl.DrawLineEx(
+			rl.Vector2{origin.x + f32(i) * cell, origin.y},
+			rl.Vector2{origin.x + f32(i) * cell, origin.y + size},
+			1,
+			line_color,
+		)
+		rl.DrawLineEx(
+			rl.Vector2{origin.x, origin.y + f32(i) * cell},
+			rl.Vector2{origin.x + size, origin.y + f32(i) * cell},
+			1,
+			line_color,
+		)
+	}
+
+	for en in entities {
+		if en.type == .Player {
+			continue
+		}
+		draw_scaled_entity(en, origin, cell)
+	}
+
+	player := find_player()
+	if player != nil {
+		draw_scaled_entity(player, origin, cell)
+		rl.DrawRectangleLinesEx(
+			rl.Rectangle {
+				origin.x + f32(player.position.x) * cell,
+				origin.y + f32(player.position.y) * cell,
+				cell,
+				cell,
+			},
+			2,
+			MY_ORANGE,
+		)
+	}
+
+	if dim {
+		rl.DrawRectangleRec(rl.Rectangle{origin.x, origin.y, size, size}, rl.Color{110, 110, 110, 170})
+	}
+
+	rl.DrawRectangleLinesEx(rl.Rectangle{origin.x, origin.y, size, size}, 2, MY_BLACK)
+}
+
+OVERVIEW_EYE_SIZE :: f32(48)
+OVERVIEW_LIST_ROW_H :: f32(60)
+// Match the normal game's font sizes (which are drawn at 1.5x zoom):
+// "Layer %d" is font 22, "by cmd" is font 32 in world space.
+OVERVIEW_FONT_SIZE :: f32(22 * ZOOM)
+OVERVIEW_SYMBOL_FONT_SIZE :: f32(32 * ZOOM)
+OVERVIEW_PANEL_GAP :: f32(80)
+
+compute_overview_layout :: proc() {
+	clear(&overview_eye_bounds)
+	clear(&overview_panel_x)
+
+	n := len(world.layers)
+	total := n + 1
+
+	view_w := f32(OVERVIEW_SCREEN_WIDTH)
+	view_h := f32(OVERVIEW_SCREEN_HEIGHT)
+
+	margin: f32 = 16
+
+	// vertical layer list (buttons + names), top to bottom, on the right
+	for i in 0 ..< n {
+		y := margin + f32(i) * OVERVIEW_LIST_ROW_H
+		x := view_w - margin - OVERVIEW_EYE_SIZE
+		append(&overview_eye_bounds, rl.Rectangle{x, y, OVERVIEW_EYE_SIZE, OVERVIEW_EYE_SIZE})
+	}
+
+	// three equal panels side by side, below the list
+	panels_top := margin + f32(n) * OVERVIEW_LIST_ROW_H + margin
+	avail_w := view_w - 2 * margin
+	avail_h := view_h - panels_top - margin
+
+	panel_w := (avail_w - OVERVIEW_PANEL_GAP * f32(total - 1)) / f32(total)
+	cell := min(panel_w, avail_h) / f32(GRID_COUNT)
+	size := cell * f32(GRID_COUNT)
+
+	overview_cell = cell
+	overview_panel_y = panels_top + (avail_h - size) * 0.5
+
+	for j in 0 ..< total {
+		append(&overview_panel_x, margin + f32(j) * (panel_w + OVERVIEW_PANEL_GAP))
+	}
+}
+
+draw_overview :: proc() {
+	rl.ClearBackground(MY_GREY)
+
+	n := len(world.layers)
+
+	// layer list: names + eye buttons, top to bottom, on the right
+	for i in 0 ..< n {
+		b := overview_eye_bounds[i]
+		label := fmt.ctprintf("Layer %d", i + 1)
+		name_w := rl.MeasureTextEx(font, label, OVERVIEW_FONT_SIZE, 1).x
+		eye_texture := world.layers[i].is_visible ? atlas_textures[.Visible].rect : atlas_textures[.Invisible].rect
+		rl.DrawTexturePro(
+			atlas,
+			eye_texture,
+			rl.Rectangle{b.x, b.y, OVERVIEW_EYE_SIZE, OVERVIEW_EYE_SIZE},
+			rl.Vector2(0),
+			0,
+			rl.WHITE,
+		)
+		rl.DrawTextEx(
+			font,
+			label,
+			rl.Vector2{b.x - name_w - 8, b.y + (OVERVIEW_EYE_SIZE - OVERVIEW_FONT_SIZE) * 0.5},
+			OVERVIEW_FONT_SIZE,
+			1,
+			MY_BLACK,
+		)
+	}
+
+	// layer panels
+	for i in 0 ..< n {
+		origin := rl.Vector2{overview_panel_x[i], overview_panel_y}
+		draw_panel(origin, overview_cell, entities_on_layer(i), !world.layers[i].is_visible)
+		rl.DrawTextEx(font, fmt.ctprintf("Layer %d", i + 1), rl.Vector2{origin.x, origin.y - OVERVIEW_FONT_SIZE - 6}, OVERVIEW_FONT_SIZE, 1, MY_BLACK)
+	}
+
+	// stacked result panel
+	{
+		origin := rl.Vector2{overview_panel_x[n], overview_panel_y}
+		draw_panel(origin, overview_cell, visible_entities_sorted(), false)
+		rl.DrawTextEx(font, "Stacked Result", rl.Vector2{origin.x, origin.y - OVERVIEW_FONT_SIZE - 6}, OVERVIEW_FONT_SIZE, 1, MY_BLACK)
+	}
+
+	// "+" and "=" symbols between panels
+	size := overview_cell * f32(GRID_COUNT)
+	center_y := overview_panel_y + size * 0.5
+	for i in 0 ..< n - 1 {
+		x := (overview_panel_x[i] + size + overview_panel_x[i + 1]) * 0.5
+		draw_overview_symbol("+", rl.Vector2{x, center_y})
+	}
+	{
+		x := (overview_panel_x[n - 1] + size + overview_panel_x[n]) * 0.5
+		draw_overview_symbol("=", rl.Vector2{x, center_y})
+	}
+}
+
+draw_overview_symbol :: proc(text: cstring, center: rl.Vector2) {
+	m := rl.MeasureTextEx(font, text, OVERVIEW_SYMBOL_FONT_SIZE, 1)
+	rl.DrawTextEx(font, text, rl.Vector2{center.x - m.x * 0.5, center.y - m.y * 0.5}, OVERVIEW_SYMBOL_FONT_SIZE, 1, MY_BLACK)
+}

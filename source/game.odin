@@ -18,6 +18,8 @@ MY_PURPLE :: rl.Color{155, 105, 112, 255}
 
 GAME_SCREEN_WIDTH :: 960 + 200
 GAME_SCREEN_HEIGHT :: 960
+OVERVIEW_SCREEN_WIDTH :: 1920
+OVERVIEW_SCREEN_HEIGHT :: 1080
 ZOOM :: 1.5
 LEVEL_SIZE :: 960
 GRID_COUNT :: 10
@@ -29,7 +31,9 @@ HALF_ALPHA_VALUE :: u8(150)
 
 // render
 target: rl.RenderTexture2D
+overview_target: rl.RenderTexture2D
 scale: f32
+overview_scale: f32
 
 // atlas
 Rect :: rl.Rectangle
@@ -55,6 +59,13 @@ current_level_index: int
 
 // UI
 eyeball_bounds: [dynamic]rl.Rectangle
+
+// overview (special view that shows every layer + player)
+is_overview: bool
+overview_eye_bounds: [dynamic]rl.Rectangle
+overview_panel_x: [dynamic]f32
+overview_cell: f32
+overview_panel_y: f32
 
 run: bool
 camera: rl.Camera2D
@@ -115,13 +126,19 @@ init :: proc() {
 	mem.arena_init(&arena, make([]byte, 6_000_000))
 	arena_allocator = mem.arena_allocator(&arena)
 
-	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
+	when ODIN_OS != .JS {
+		rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT, .WINDOW_MAXIMIZED})
+	} else {
+		rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
+	}
 	rl.InitWindow(GAME_SCREEN_WIDTH * RATIO, GAME_SCREEN_HEIGHT * RATIO, "Layers")
 	rl.InitAudioDevice()
 
 	// Render texture initialization, used to hold the rendering result so we can easily resize it
 	target = rl.LoadRenderTexture(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT)
 	rl.SetTextureFilter(target.texture, rl.TextureFilter.POINT)
+	overview_target = rl.LoadRenderTexture(OVERVIEW_SCREEN_WIDTH, OVERVIEW_SCREEN_HEIGHT)
+	rl.SetTextureFilter(overview_target.texture, rl.TextureFilter.POINT)
 
 	rl.SetTargetFPS(60)
 	init_layers()
@@ -134,41 +151,64 @@ init :: proc() {
 update :: proc() {
 	rl.ClearBackground(MY_GREY)
 	rl.UpdateMusicStream(bgm)
-	scale = RATIO
 	scale = min(
 		f32(rl.GetScreenWidth()) / f32(GAME_SCREEN_WIDTH),
 		f32(rl.GetScreenHeight()) / f32(GAME_SCREEN_HEIGHT),
 	)
+	overview_scale = min(
+		f32(rl.GetScreenWidth()) / f32(OVERVIEW_SCREEN_WIDTH),
+		f32(rl.GetScreenHeight()) / f32(OVERVIEW_SCREEN_HEIGHT),
+	)
 
 	init_ui_bounds()
 
-	rl.BeginTextureMode(target)
-	{
-		rl.BeginMode2D(camera)
-		{
-			game_update()
-			draw()
-		}
-		rl.EndMode2D()
+	if rl.IsKeyPressed(.TAB) {
+		is_overview = !is_overview
+		rl.PlaySound(sfx_switch)
 	}
-	rl.EndTextureMode()
+
+	if is_overview {
+		rl.BeginTextureMode(overview_target)
+		{
+			overview_update()
+			draw_overview()
+		}
+		rl.EndTextureMode()
+	} else {
+		rl.BeginTextureMode(target)
+		{
+			rl.BeginMode2D(camera)
+			{
+				game_update()
+				draw()
+			}
+			rl.EndMode2D()
+		}
+		rl.EndTextureMode()
+	}
 
 	// Draw scaled content to screen
 	rl.BeginDrawing()
 	{
-		// Calculate destination rectangle for scaled drawing
-		dest := rl.Rectangle {
-			(f32(rl.GetScreenWidth()) - f32(GAME_SCREEN_WIDTH) * scale) * 0.5,
-			(f32(rl.GetScreenHeight()) - f32(GAME_SCREEN_HEIGHT) * scale) * 0.5,
-			f32(GAME_SCREEN_WIDTH) * scale,
-			f32(GAME_SCREEN_HEIGHT) * scale,
+		if is_overview {
+			dest := rl.Rectangle {
+				(f32(rl.GetScreenWidth()) - f32(OVERVIEW_SCREEN_WIDTH) * overview_scale) * 0.5,
+				(f32(rl.GetScreenHeight()) - f32(OVERVIEW_SCREEN_HEIGHT) * overview_scale) * 0.5,
+				f32(OVERVIEW_SCREEN_WIDTH) * overview_scale,
+				f32(OVERVIEW_SCREEN_HEIGHT) * overview_scale,
+			}
+			source := rl.Rectangle{0, 0, f32(overview_target.texture.width), f32(-overview_target.texture.height)}
+			rl.DrawTexturePro(overview_target.texture, source, dest, rl.Vector2{0, 0}, 0.0, rl.WHITE)
+		} else {
+			dest := rl.Rectangle {
+				(f32(rl.GetScreenWidth()) - f32(GAME_SCREEN_WIDTH) * scale) * 0.5,
+				(f32(rl.GetScreenHeight()) - f32(GAME_SCREEN_HEIGHT) * scale) * 0.5,
+				f32(GAME_SCREEN_WIDTH) * scale,
+				f32(GAME_SCREEN_HEIGHT) * scale,
+			}
+			source := rl.Rectangle{0, 0, f32(target.texture.width), f32(-target.texture.height)}
+			rl.DrawTexturePro(target.texture, source, dest, rl.Vector2{0, 0}, 0.0, rl.WHITE)
 		}
-
-		// Draw render texture to screen, properly scaled
-		source := rl.Rectangle{0, 0, f32(target.texture.width), f32(-target.texture.height)}
-		origin := rl.Vector2{0, 0}
-
-		rl.DrawTexturePro(target.texture, source, dest, origin, 0.0, rl.WHITE)
 	}
 	rl.EndDrawing()
 	free_all(context.temp_allocator)
@@ -198,7 +238,7 @@ should_run :: proc() -> bool {
 	return run
 }
 
-get_move_input :: proc() {
+read_move_input :: proc() {
 	input = .None
 	if rl.IsKeyPressed(.UP) || rl.IsKeyPressed(.W) {
 		input = .Up
@@ -209,14 +249,38 @@ get_move_input :: proc() {
 	} else if rl.IsKeyPressed(.RIGHT) || rl.IsKeyPressed(.D) {
 		input = .Right
 	}
-	mouse_position = get_mouse_position()
-	if input != .None {
-		// push record to undo stack
-		record := new(Record, context.temp_allocator)
-		record.world = clone_world(&world)
-		append(&undo_stack, record^)
-		rl.PlaySound(sfx_footstep)
+}
+
+push_undo_record :: proc() {
+	if input == .None {
+		return
 	}
+	record := new(Record, context.temp_allocator)
+	record.world = clone_world(&world)
+	append(&undo_stack, record^)
+	rl.PlaySound(sfx_footstep)
+}
+
+apply_movement :: proc() {
+	player := find_player()
+	#partial switch input {
+	case .Up:
+		move(player, {0, -1})
+	case .Down:
+		move(player, {0, 1})
+	case .Left:
+		move(player, {-1, 0})
+		player.is_flipped = true
+	case .Right:
+		move(player, {1, 0})
+		player.is_flipped = false
+	}
+}
+
+get_move_input :: proc() {
+	read_move_input()
+	mouse_position = get_mouse_position()
+	push_undo_record()
 }
 
 // :init
@@ -258,19 +322,7 @@ init_ui_bounds :: proc() {
 // :update
 game_update :: proc() {
 	get_move_input()
-	player := find_player()
-	#partial switch input {
-	case .Up:
-		move(player, {0, -1})
-	case .Down:
-		move(player, {0, 1})
-	case .Left:
-		move(player, {-1, 0})
-		player.is_flipped = true
-	case .Right:
-		move(player, {1, 0})
-		player.is_flipped = false
-	}
+	apply_movement()
 
 	// toggle layer's visibility
 	for i in 0 ..< len(world.layers) {
@@ -308,6 +360,41 @@ game_update :: proc() {
 	if rl.IsKeyPressed(.RIGHT_BRACKET) {
 		level_load_by_index(current_level_index + 1)
 	}
+}
+
+overview_update :: proc() {
+	compute_overview_layout()
+	read_move_input()
+	push_undo_record()
+	apply_movement()
+
+	mouse_position = get_overview_mouse_position()
+
+	for i in 0 ..< len(world.layers) {
+		if rl.CheckCollisionPointRec(mouse_position, overview_eye_bounds[i]) {
+			if rl.IsMouseButtonPressed(.LEFT) {
+				toggle_layer_visibility(i)
+				rl.PlaySound(sfx_switch)
+			}
+		}
+	}
+
+	is_completed = check_completion()
+
+	if rl.IsKeyPressed(.ESCAPE) {
+		is_overview = false
+		rl.PlaySound(sfx_switch)
+	}
+}
+
+get_overview_mouse_position :: proc() -> [2]f32 {
+	rl.SetMouseOffset(
+		-i32((f32(rl.GetScreenWidth()) - OVERVIEW_SCREEN_WIDTH * overview_scale) * 0.5),
+		-i32((f32(rl.GetScreenHeight()) - OVERVIEW_SCREEN_HEIGHT * overview_scale) * 0.5),
+	)
+	rl.SetMouseScale(1 / overview_scale, 1 / overview_scale)
+	mouse_position = rl.GetMousePosition()
+	return mouse_position
 }
 
 get_mouse_position :: proc() -> [2]f32 {

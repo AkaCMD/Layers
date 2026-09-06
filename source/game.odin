@@ -4,6 +4,7 @@ import "core:c"
 import "core:fmt"
 import "core:log"
 import "core:mem"
+import "core:slice"
 import "core:strings"
 import rl "vendor:raylib"
 
@@ -48,7 +49,6 @@ sfx_complete: rl.Sound
 
 offset := rl.Vector2{0, 0}
 mouse_position: rl.Vector2
-targets: [dynamic]Entity
 
 font: rl.Font
 
@@ -57,8 +57,7 @@ should_show_tip: bool = true
 current_level_index: int
 
 // UI
-eyeball_1_bounds: rl.Rectangle
-eyeball_2_bounds: rl.Rectangle
+eyeball_bounds: [dynamic]rl.Rectangle
 
 run: bool
 camera: rl.Camera2D
@@ -84,52 +83,41 @@ Entity_Type :: enum u8 {
 
 icon: rl.Image
 
+// Number of layers per level. Increase this and add a matching
+// `assets/levels/{n}-l{layer}.txt` file to add more layers.
+NUM_LAYERS :: 2
+// Special layer value for entities that don't belong to any togglable layer
+// (the player): always active, always drawn on top.
+NO_LAYER :: -1
+
 Layer :: struct {
-	entities:   [dynamic]Entity,
 	is_visible: bool,
-	order:      int,
+	order:      int, // draw order; higher = drawn later (in front)
 }
 
-get_layer_by_num :: proc(num: int) -> Layer {
-	if num == 1 {
-		return level.layer_1
-	} else {
-		return level.layer_2
-	}
+World :: struct {
+	entities: [dynamic]Entity,
+	layers:   [dynamic]Layer,
 }
 
-clone_layer :: proc(layer: ^Layer) -> ^Layer {
-	new_layer := new(Layer, arena_allocator)
-	new_layer.is_visible = layer.is_visible
-	new_layer.order = layer.order
+world := World{}
 
-	// Clone the dynamic array of entities
-	new_layer.entities = make([dynamic]Entity, len(layer.entities), arena_allocator)
-	copy(new_layer.entities[:], layer.entities[:])
-
-	return new_layer
+add_entity :: proc(w: ^World, e: Entity) {
+	append(&w.entities, e)
 }
 
-clone_level :: proc(level: ^Level) -> Level {
-	new_level: Level
-	new_level.layer_1 = clone_layer(&level.layer_1)^
-	new_level.layer_2 = clone_layer(&level.layer_2)^
-	return new_level
-}
-
-Level :: struct {
-	layer_1: Layer,
-	layer_2: Layer,
-}
-
-level := Level {
-	layer_1 = Layer{is_visible = true, order = 1},
-	layer_2 = Layer{is_visible = true, order = 2},
+Entity :: struct {
+	type:        Entity_Type,
+	texture:     Texture_Name,
+	position:    [2]int,
+	layer:       int, // index into world.layers, or NO_LAYER
+	priority:    int, // start from 0
+	can_overlap: bool,
+	is_flipped:  bool,
 }
 
 Record :: struct {
-	level:           Level,
-	player_position: [2]int,
+	world: World,
 }
 
 undo_stack: [dynamic]Record
@@ -144,26 +132,13 @@ Input :: enum {
 
 input: Input
 
-Entity :: struct {
-	type:        Entity_Type,
-	texture:  	 Texture_Name,
-	position:    [2]int,
-	layer:       int, // 1 or 2
-	priority:    int, // from 0
-	can_overlap: bool,
-}
-
-Player :: struct {
-	using entity: Entity,
-	is_flipped:   bool,
-}
-
-player := Player{}
 setup_player :: proc(en: ^Entity) {
 	en.texture = .Duck
 	en.type = .Player
 	en.position = {1, 1}
 	en.priority = 3
+	en.layer = NO_LAYER
+	en.is_flipped = false
 }
 
 setup_cargo :: proc(en: ^Entity) {
@@ -190,7 +165,51 @@ setup_target :: proc(en: ^Entity) {
 	en.type = .Target
 	en.priority = 2
 	en.can_overlap = true
-	append(&targets, en^)
+}
+
+init_layers :: proc() {
+	clear(&world.layers)
+	for i in 0 ..< NUM_LAYERS {
+		append(&world.layers, Layer{is_visible = true, order = NUM_LAYERS - 1 - i})
+	}
+}
+
+clone_world :: proc(w: ^World) -> World {
+	nw: World
+	nw.layers = make([dynamic]Layer, len(w.layers), arena_allocator)
+	copy(nw.layers[:], w.layers[:])
+	nw.entities = make([dynamic]Entity, len(w.entities), arena_allocator)
+	copy(nw.entities[:], w.entities[:])
+	return nw
+}
+
+layer_is_active :: proc(layer: int) -> bool {
+	if layer < 0 {
+		return true
+	}
+	return layer < len(world.layers) && world.layers[layer].is_visible
+}
+
+any_layer_visible :: proc() -> bool {
+	for layer in world.layers {
+		if layer.is_visible {
+			return true
+		}
+	}
+	return false
+}
+
+toggle_layer_visibility :: proc(index: int) {
+	world.layers[index].is_visible = !world.layers[index].is_visible
+	// never allow all layers to be hidden at once
+	if !any_layer_visible() {
+		for i in 0 ..< len(world.layers) {
+			if i != index {
+				world.layers[i].is_visible = true
+				break
+			}
+		}
+	}
 }
 
 init :: proc() {
@@ -238,6 +257,7 @@ init :: proc() {
 	rl.SetTextureFilter(target.texture, rl.TextureFilter.POINT)
 
 	rl.SetTargetFPS(60)
+	init_layers()
 	game_init()
 	rl.PlayMusicStream(bgm)
 
@@ -311,6 +331,51 @@ should_run :: proc() -> bool {
 	return run
 }
 
+entity_draw_order :: proc(en: ^Entity) -> int {
+	if en.layer < 0 {
+		return 1 << 30
+	}
+	return world.layers[en.layer].order
+}
+
+draw_entity :: proc(en: ^Entity) {
+	if en.type == .Flag {
+		if is_completed {
+			en.texture = .Flag_Ok
+		} else {
+			en.texture = .Flag_No
+		}
+	}
+
+	if en.type == .Player {
+		rect := atlas_textures[en.texture].rect
+		source := rect
+		if en.is_flipped {
+			source.width = -source.width
+		}
+		rl.DrawTexturePro(
+			atlas,
+			source,
+			rl.Rectangle {
+				f32(en.position.x * GRID_SIZE),
+				f32(en.position.y * GRID_SIZE),
+				rect.width,
+				rect.height,
+			},
+			rl.Vector2(0),
+			0,
+			rl.WHITE,
+		)
+	} else {
+		rl.DrawTextureRec(
+			atlas,
+			atlas_textures[en.texture].rect,
+			rl.Vector2{f32(en.position.x * GRID_SIZE), f32(en.position.y * GRID_SIZE)},
+			rl.Color{255, 255, 255, HALF_ALPHA_VALUE},
+		)
+	}
+}
+
 // :draw
 draw :: proc() {
 	rl.ClearBackground(rl.RAYWHITE)
@@ -333,101 +398,48 @@ draw :: proc() {
 		)
 	}
 
-	// draw level
-	if level.layer_2.is_visible {
-		for &entity in level.layer_2.entities {
-			if entity.type == .Flag {
-				if is_completed {
-					entity.texture = .Flag_Ok
-				} else {
-					entity.texture = .Flag_No
-				}
-			}
-			rl.DrawTextureRec(
-				atlas,
-				atlas_textures[entity.texture].rect,
-				rl.Vector2{f32(entity.position.x * GRID_SIZE), f32(entity.position.y * GRID_SIZE)},
-				rl.Color{255, 255, 255, HALF_ALPHA_VALUE},
-			)
+	// draw all entities in one pass, ordered by layer
+	visible_entities := make([dynamic]^Entity, 0, context.temp_allocator)
+	for &en in world.entities {
+		if !layer_is_active(en.layer) {
+			continue
 		}
+		append(&visible_entities, &en)
 	}
-
-	if level.layer_1.is_visible {
-		for &entity in level.layer_1.entities {
-			if entity.type == .Flag {
-				if is_completed {
-					entity.texture = .Flag_Ok
-				} else {
-					entity.texture = .Flag_No
-				}
-			}
-			rl.DrawTextureRec(
-				atlas,
-				atlas_textures[entity.texture].rect,
-				rl.Vector2{f32(entity.position.x * GRID_SIZE), f32(entity.position.y * GRID_SIZE)},
-				rl.Color{255, 255, 255, HALF_ALPHA_VALUE},
-			)
-		}
+	slice.stable_sort_by(visible_entities[:], proc(a, b: ^Entity) -> bool {
+		return entity_draw_order(a) < entity_draw_order(b)
+	})
+	for en in visible_entities {
+		draw_entity(en)
 	}
-
-	// draw player
-	player_rect := atlas_textures[player.texture].rect
-	source := player_rect
-	if player.is_flipped {
-		source.width = -source.width
-	}
-	rl.DrawTexturePro(
-		atlas,
-		source,
-		rl.Rectangle {
-			f32(player.position.x * GRID_SIZE),
-			f32(player.position.y * GRID_SIZE),
-			player_rect.width,
-			player_rect.height,
-		},
-		rl.Vector2(0),
-		0,
-		rl.WHITE,
-	)
 
 	// draw text and ui
 	// :ui texture positions
-	rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 22, 1.2, MY_BLACK)
-	rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 42}, 22, 1.2, MY_BLACK)
-	rl.DrawTextureRec(
-		atlas,
-		atlas_textures[.Chain].rect,
-		rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 28},
-		rl.Color{255, 255, 255, 150},
-	)
-	if level.layer_1.is_visible {
-		rl.DrawTextureRec(
-			atlas,
-			atlas_textures[.Visible].rect,
-			rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y - 13},
-			rl.WHITE,
-		)
-	} else {
-		rl.DrawTextureRec(
-			atlas,
-			atlas_textures[.Invisible].rect,
-			rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y - 13},
-			rl.WHITE,
-		)
+	for i in 0 ..< len(world.layers) {
+		rl.DrawTextEx(font, fmt.ctprintf("Layer %d", i + 1), rl.Vector2{690, f32(10 + i * 32)}, 22, 1.2, MY_BLACK)
+		if world.layers[i].is_visible {
+			rl.DrawTextureRec(
+				atlas,
+				atlas_textures[.Visible].rect,
+				rl.Vector2{eyeball_bounds[i].x, eyeball_bounds[i].y - 13},
+				rl.WHITE,
+			)
+		} else {
+			rl.DrawTextureRec(
+				atlas,
+				atlas_textures[.Invisible].rect,
+				rl.Vector2{eyeball_bounds[i].x, eyeball_bounds[i].y - 13},
+				rl.WHITE,
+			)
+		}
 	}
-	if level.layer_2.is_visible {
+	if len(world.layers) > 0 {
+		last := len(world.layers) - 1
 		rl.DrawTextureRec(
 			atlas,
-			atlas_textures[.Visible].rect,
-			rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 13},
-			rl.WHITE,
-		)
-	} else {
-		rl.DrawTextureRec(
-			atlas,
-			atlas_textures[.Invisible].rect,
-			rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 13},
-			rl.WHITE,
+			atlas_textures[.Chain].rect,
+			rl.Vector2{eyeball_bounds[last].x, eyeball_bounds[last].y - 28},
+			rl.Color{255, 255, 255, 150},
 		)
 	}
 
@@ -458,8 +470,7 @@ get_move_input :: proc() {
 	if input != .None {
 		// push record to undo stack
 		record := new(Record, context.temp_allocator)
-		record.level = clone_level(&level)
-		record.player_position = player.position
+		record.world = clone_world(&world)
 		append(&undo_stack, record^)
 		rl.PlaySound(sfx_footstep)
 	}
@@ -492,66 +503,45 @@ game_init :: proc() {
 init_ui_bounds :: proc() {
 	visible := atlas_textures[.Visible].rect
 
-	eyeball_1_bounds = rl.Rectangle {
-		630,
-		1,
-		visible.width,
-		visible.height / 2,
-	}
-
-	eyeball_2_bounds = rl.Rectangle {
-		630,
-		33,
-		visible.width,
-		visible.height / 2,
+	clear(&eyeball_bounds)
+	for i in 0 ..< len(world.layers) {
+		append(
+			&eyeball_bounds,
+			rl.Rectangle{630, f32(1 + i * 32), visible.width, visible.height / 2},
+		)
 	}
 }
 
 // :update
 game_update :: proc() {
 	get_move_input()
+	player := find_player()
 	#partial switch input {
 	case .Up:
-		move(&player, {0, -1})
+		move(player, {0, -1})
 	case .Down:
-		move(&player, {0, 1})
+		move(player, {0, 1})
 	case .Left:
-		move(&player, {-1, 0})
+		move(player, {-1, 0})
 		player.is_flipped = true
 	case .Right:
-		move(&player, {1, 0})
+		move(player, {1, 0})
 		player.is_flipped = false
 	}
 
 	// toggle layer's visibility
-	if rl.CheckCollisionPointRec(mouse_position, eyeball_1_bounds) {
-		rl.DrawRectangleLinesEx(
-			rl.Rectangle{eyeball_1_bounds.x + 10, eyeball_1_bounds.y + 5, 130, 30},
-			2,
-			MY_PURPLE,
-		)
-		if rl.IsMouseButtonPressed(.LEFT) {
-			should_show_tip = false
-			level.layer_1.is_visible = !level.layer_1.is_visible
-			if !level.layer_1.is_visible && !level.layer_2.is_visible {
-				level.layer_2.is_visible = true
+	for i in 0 ..< len(world.layers) {
+		if rl.CheckCollisionPointRec(mouse_position, eyeball_bounds[i]) {
+			rl.DrawRectangleLinesEx(
+				rl.Rectangle{eyeball_bounds[i].x + 10, eyeball_bounds[i].y + 5, 130, 30},
+				2,
+				MY_PURPLE,
+			)
+			if rl.IsMouseButtonPressed(.LEFT) {
+				should_show_tip = false
+				toggle_layer_visibility(i)
+				rl.PlaySound(sfx_switch)
 			}
-			rl.PlaySound(sfx_switch)
-		}
-	}
-	if rl.CheckCollisionPointRec(mouse_position, eyeball_2_bounds) {
-		rl.DrawRectangleLinesEx(
-			rl.Rectangle{eyeball_2_bounds.x + 10, eyeball_2_bounds.y + 5, 130, 30},
-			2,
-			MY_PURPLE,
-		)
-		if rl.IsMouseButtonPressed(.LEFT) {
-			should_show_tip = false
-			level.layer_2.is_visible = !level.layer_2.is_visible
-			if !level.layer_1.is_visible && !level.layer_2.is_visible {
-				level.layer_1.is_visible = true
-			}
-			rl.PlaySound(sfx_switch)
 		}
 	}
 
@@ -588,77 +578,52 @@ get_mouse_position :: proc() -> [2]f32 {
 }
 
 move :: proc(en: ^Entity, dir: [2]int) -> bool {
-	// Check for overlapping entities
-	en_1, en_2 := find_non_overlap_entities_in_positon(en.position)
-	box: ^Entity = nil
-
-	if en.type == .Player {
-		box = select_cargo(en_1, en_2)
-	}
-
-	// Determine target position
 	target_pos := en.position + dir
 	if !is_within_bounds(target_pos) {
 		return false // Out of bounds, do nothing
 	}
 
-	entity_in_l1, entity_in_l2 := find_non_overlap_entities_in_positon(target_pos)
+	// cargo under the player (same cell) rides along when the player moves
+	box: ^Entity = nil
+	if en.type == .Player {
+		for b in find_blocking_entities_at(en.position, en) {
+			if b.type == .Cargo {
+				box = b
+				break
+			}
+		}
+	}
 
-	if can_move_to(entity_in_l1, entity_in_l2) {
+	blocking := find_blocking_entities_at(target_pos, en)
+
+	if len(blocking) == 0 {
 		update_position(en, target_pos, box)
 		return true
 	}
 
-	if try_move_cargo(entity_in_l1, dir, en, target_pos, box) &&
-	   try_move_cargo(entity_in_l2, dir, en, target_pos, box) {
-		return true
+	// every blocking entity must be a pushable cargo
+	for b in blocking {
+		if b.type != .Cargo {
+			return false
+		}
+		if !is_within_bounds(b.position + dir) {
+			return false
+		}
+		if len(find_blocking_entities_at(b.position + dir, en)) > 0 {
+			return false
+		}
 	}
 
-	return false
-}
-
-select_cargo :: proc(en_1: ^Entity, en_2: ^Entity) -> ^Entity {
-	if en_1 != nil && en_1.type == .Cargo {
-		return en_1
-	} else if en_2 != nil && en_2.type == .Cargo {
-		return en_2
+	update_position(en, target_pos, box)
+	for b in blocking {
+		b.position += dir
 	}
-	return nil
+	rl.PlaySound(sfx_pushbox)
+	return true
 }
 
 is_within_bounds :: proc(pos: [2]int) -> bool {
 	return pos.x >= 0 && pos.x < GRID_COUNT && pos.y >= 0 && pos.y < GRID_COUNT
-}
-
-can_move_to :: proc(entity_in_l1: ^Entity, entity_in_l2: ^Entity) -> bool {
-	return(
-		(entity_in_l1 == nil || entity_in_l1.can_overlap) &&
-		(entity_in_l2 == nil || entity_in_l2.can_overlap) \
-	)
-}
-
-try_move_cargo :: proc(
-	entity: ^Entity,
-	dir: [2]int,
-	en: ^Entity,
-	target_pos: [2]int,
-	box: ^Entity,
-) -> bool {
-	if entity != nil && entity.type == .Cargo {
-		if !is_within_bounds(entity.position + dir) {
-			return false // Out of bounds, do nothing
-		}
-		if en_1, en_2 := find_non_overlap_entities_in_positon(entity.position + dir);
-		   (en_1 == nil) && (en_2 == nil) {
-			update_position(en, target_pos, box)
-			entity.position += dir
-			rl.PlaySound(sfx_pushbox)
-			return true
-		} else {
-			return false
-		}
-	}
-	return true
 }
 
 update_position :: proc(en: ^Entity, target_pos: [2]int, box: ^Entity) {
@@ -669,64 +634,70 @@ update_position :: proc(en: ^Entity, target_pos: [2]int, box: ^Entity) {
 	}
 }
 
-find_entities_in_position :: proc(pos: [2]int) -> (^Entity, ^Entity) {
-	entity_in_l1: ^Entity = nil
-	entity_in_l2: ^Entity = nil
-
-	if level.layer_1.is_visible == true {
-		for &en in level.layer_1.entities {
-			if en.position == pos {
-				entity_in_l1 = &en
-				break
-			}
+find_player :: proc() -> ^Entity {
+	for &en in world.entities {
+		if en.type == .Player {
+			return &en
 		}
 	}
-
-	if level.layer_2.is_visible == true {
-		for &en in level.layer_2.entities {
-			if en.position == pos {
-				entity_in_l2 = &en
-				break
-			}
-		}
-	}
-
-	return entity_in_l1, entity_in_l2
+	return nil
 }
 
-find_non_overlap_entities_in_positon :: proc(pos: [2]int) -> (^Entity, ^Entity) {
-	entity_in_l1: ^Entity = nil
-	entity_in_l2: ^Entity = nil
-
-	if level.layer_1.is_visible == true {
-		for &en in level.layer_1.entities {
-			if en.position == pos && !en.can_overlap {
-				entity_in_l1 = &en
-				break
-			}
+// All entities on active layers at `pos`, excluding `self` (pass nil to keep all).
+find_entities_at :: proc(pos: [2]int, self: ^Entity) -> [dynamic]^Entity {
+	result := make([dynamic]^Entity, 0, context.temp_allocator)
+	for &en in world.entities {
+		if self != nil && &en == self {
+			continue
 		}
-	}
-
-	if level.layer_2.is_visible == true {
-		for &en in level.layer_2.entities {
-			if en.position == pos && !en.can_overlap {
-				entity_in_l2 = &en
-				break
-			}
+		if en.position != pos {
+			continue
 		}
+		if !layer_is_active(en.layer) {
+			continue
+		}
+		append(&result, &en)
 	}
+	return result
+}
 
-	return entity_in_l1, entity_in_l2
+// Non-overlapping (solid) entities on active layers at `pos`, excluding `self`.
+find_blocking_entities_at :: proc(pos: [2]int, self: ^Entity) -> [dynamic]^Entity {
+	result := make([dynamic]^Entity, 0, context.temp_allocator)
+	for &en in world.entities {
+		if self != nil && &en == self {
+			continue
+		}
+		if en.position != pos {
+			continue
+		}
+		if en.can_overlap {
+			continue
+		}
+		if !layer_is_active(en.layer) {
+			continue
+		}
+		append(&result, &en)
+	}
+	return result
 }
 
 check_completion :: proc() -> bool {
-	for target in targets {
-		if get_layer_by_num(target.layer).is_visible == false {
+	for &en in world.entities {
+		if en.type != .Target {
+			continue
+		}
+		if !world.layers[en.layer].is_visible {
 			return false
 		}
-		en_1, en_2 := find_non_overlap_entities_in_positon(target.position)
-		if (en_1 == nil || (en_1 != nil && en_1.type != .Cargo)) &&
-		   (en_2 == nil || (en_2 != nil && en_2.type != .Cargo)) {
+		has_cargo := false
+		for b in find_blocking_entities_at(en.position, nil) {
+			if b.type == .Cargo {
+				has_cargo = true
+				break
+			}
+		}
+		if !has_cargo {
 			return false
 		}
 	}
@@ -734,40 +705,35 @@ check_completion :: proc() -> bool {
 	if !is_completed {
 		rl.PlaySound(sfx_activate)
 	}
-	// when player enter the flag, load next level
-	en_1, en_2 := find_entities_in_position(player.position)
-	if (en_1 != nil && en_1.type == .Flag) || (en_2 != nil && en_2.type == .Flag) {
-		log.info("Load next level!")
-		rl.PlaySound(sfx_complete)
-		level_load_by_index(current_level_index + 1)
+	// when player enters the flag, load next level
+	player := find_player()
+	for e in find_entities_at(player.position, player) {
+		if e.type == .Flag {
+			log.info("Load next level!")
+			rl.PlaySound(sfx_complete)
+			level_load_by_index(current_level_index + 1)
+			break
+		}
 	}
 	return true
 }
 
 
 level_load_from_txt :: proc(index: int) -> bool {
-	setup_player(&player)
+	add_player()
 
 	builder := strings.builder_make(context.temp_allocator)
 
-	path1 := fmt.sbprintf(&builder, "assets/levels/%d-l1.txt", index)
-	if l1_data, ok := read_entire_file(path1, context.temp_allocator); ok {
-		level_load_layer_from_txt(1, string(l1_data))
-		log.infof("Loaded level%d layer1!", index)
-	} else {
-		log.infof("Could't load level%d layer1!", index)
-		return false
-	}
-
-	strings.builder_reset(&builder)
-
-	path2 := fmt.sbprintf(&builder, "assets/levels/%d-l2.txt", index)
-	if l2_data, ok := read_entire_file(path2, context.temp_allocator); ok {
-		level_load_layer_from_txt(2, string(l2_data))
-		log.infof("Loaded level%d layer2!", index)
-	} else {
-		log.infof("Could't load level%d layer2!", index)
-		return false
+	for layer_index in 0 ..< NUM_LAYERS {
+		strings.builder_reset(&builder)
+		path := fmt.sbprintf(&builder, "assets/levels/%d-l%d.txt", index, layer_index + 1)
+		if data, ok := read_entire_file(path, context.temp_allocator); ok {
+			level_load_layer_from_txt(layer_index, string(data))
+			log.infof("Loaded level%d layer%d!", index, layer_index + 1)
+		} else {
+			log.infof("Could't load level%d layer%d!", index, layer_index + 1)
+			return false
+		}
 	}
 	return true
 }
@@ -776,7 +742,7 @@ level_load_layer_from_txt :: proc(layer_index: int, content: string) {
 	x := 0
 	y := 0
 
-	fmt.printf("\nlayer %d:\n", layer_index)
+	fmt.printf("\nlayer %d:\n", layer_index + 1)
 	for char in content {
 		// print the level
 		if char != '\n' {
@@ -814,30 +780,27 @@ level_load_layer_from_txt :: proc(layer_index: int, content: string) {
 		case:
 			continue
 		}
-		if layer_index == 1 {
-			append(&level.layer_1.entities, en^)
-		} else if layer_index == 2 {
-			append(&level.layer_2.entities, en^)
-		} else {
-			log.error("Invalid layer index!")
-		}
+		append(&world.entities, en^)
 	}
 }
 
+add_player :: proc() {
+	en: Entity
+	setup_player(&en)
+	append(&world.entities, en)
+}
+
 level_unload :: proc() {
-	resize(&level.layer_1.entities, 0)
-	resize(&level.layer_2.entities, 0)
-	resize(&targets, 0)
-	resize(&undo_stack, 0)
+	clear(&world.entities)
+	clear(&undo_stack)
 
 	is_completed = false
 }
 
 unload_game :: proc() {
-	delete(level.layer_1.entities)
-	delete(level.layer_2.entities)
+	delete(world.entities)
+	delete(world.layers)
 	delete(undo_stack)
-	delete(targets)
 }
 
 level_load_by_index :: proc(index: int) -> bool {
@@ -864,11 +827,8 @@ undo :: proc() {
 	}
 	rl.PlaySound(sfx_undo)
 	record := pop(&undo_stack)
-	level = record.level
-	player.position = record.player_position
+	world = record.world
 	log.info("undo")
-	delete(record.level.layer_1.entities)
-	delete(record.level.layer_2.entities)
 }
 
 // :tip

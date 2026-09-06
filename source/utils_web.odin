@@ -1,28 +1,28 @@
-#+build wasm32, wasm64p32
 // Implementations of `read_entire_file` and `write_entire_file` using the libc
 // stuff emscripten exposes. You can read the files that get bundled by
 // `--preload-file assets` in `build_web` script.
 
+#+build wasm32, wasm64p32
 
 package game
 
 import "base:runtime"
-import "core:c"
 import "core:log"
+import "core:c"
 import "core:strings"
 
 // These will be linked in by emscripten.
 @(default_calling_convention = "c")
-foreign _ {
-	fopen :: proc(filename, mode: cstring) -> ^FILE ---
-	fseek :: proc(stream: ^FILE, offset: c.long, whence: Whence) -> c.int ---
-	ftell :: proc(stream: ^FILE) -> c.long ---
+foreign {
+	fopen  :: proc(filename, mode: cstring) -> ^FILE ---
+	fseek  :: proc(stream: ^FILE, offset: c.long, whence: Whence) -> c.int ---
+	ftell  :: proc(stream: ^FILE) -> c.long ---
 	fclose :: proc(stream: ^FILE) -> c.int ---
-	fread :: proc(ptr: rawptr, size: c.size_t, nmemb: c.size_t, stream: ^FILE) -> c.size_t ---
+	fread  :: proc(ptr: rawptr, size: c.size_t, nmemb: c.size_t, stream: ^FILE) -> c.size_t ---
 	fwrite :: proc(ptr: rawptr, size: c.size_t, nmemb: c.size_t, stream: ^FILE) -> c.size_t ---
 }
 
-@(private = "file")
+@(private="file")
 FILE :: struct {}
 
 Whence :: enum c.int {
@@ -32,14 +32,7 @@ Whence :: enum c.int {
 }
 
 // Similar to raylib's LoadFileData
-_read_entire_file :: proc(
-	name: string,
-	allocator := context.allocator,
-	loc := #caller_location,
-) -> (
-	data: []byte,
-	success: bool,
-) {
+_read_entire_file :: proc(name: string, allocator := context.allocator, loc := #caller_location) -> (data: []byte, success: bool) {
 	if name == "" {
 		log.error("No file name provided")
 		return
@@ -110,7 +103,7 @@ _write_entire_file :: proc(name: string, data: []byte, truncate := true) -> (suc
 		log.errorf("File partially written, wrote %v out of %v bytes", bytes_written, len(data))
 		return
 	}
-
+	
 	log.debugf("File written successfully: %v", name)
 	return true
 }

@@ -321,6 +321,35 @@ draw_overview :: proc() {
 			1,
 			MY_BLACK,
 		)
+
+		// highlight the whole row when hovered, matching the normal view
+		if rl.CheckCollisionPointRec(mouse_position, b) {
+			rl.DrawRectangleLinesEx(
+				rl.Rectangle{
+					b.x - name_w - 16,
+					b.y - 8,
+					name_w + OVERVIEW_EYE_SIZE + 24,
+					OVERVIEW_EYE_SIZE + 16,
+				},
+				2,
+				MY_PURPLE,
+			)
+		}
+	}
+
+	// chain icon linking the layer toggles, matching the normal view
+	if n > 1 {
+		a := overview_eye_bounds[n - 2]
+		b := overview_eye_bounds[n - 1]
+		mid_y := (a.y + OVERVIEW_EYE_SIZE + b.y) * 0.5
+		rl.DrawTexturePro(
+			atlas,
+			atlas_textures[.Chain].rect,
+			rl.Rectangle{b.x, mid_y - OVERVIEW_EYE_SIZE * 0.5, OVERVIEW_EYE_SIZE, OVERVIEW_EYE_SIZE},
+			rl.Vector2(0),
+			0,
+			rl.Color{255, 255, 255, 150},
+		)
 	}
 
 	// layer panels

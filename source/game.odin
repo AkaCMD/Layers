@@ -33,6 +33,10 @@ HALF_ALPHA_VALUE :: u8(150)
 target: rl.RenderTexture2D
 scale: f32
 
+// atlas
+Rect :: rl.Rectangle
+atlas: rl.Texture
+
 // audio
 bgm: rl.Music
 sfx_footstep: rl.Sound
@@ -77,23 +81,6 @@ Entity_Type :: enum u8 {
 // Wall => '#'
 // Target => '*'
 // Flag => '>'
-
-textures: map[string]rl.Texture
-TEXTURE_PATH :: "assets/textures/"
-
-load_texture :: proc(path: string) -> rl.Texture {
-	if t, t_ok := textures[path]; t_ok {
-		return t
-	}
-
-	t := rl.LoadTexture(strings.clone_to_cstring(path, context.temp_allocator))
-
-	if t.id != 0 {
-		textures[path] = t
-	}
-
-	return t
-}
 
 icon: rl.Image
 
@@ -159,7 +146,7 @@ input: Input
 
 Entity :: struct {
 	type:        Entity_Type,
-	texture:  	 rl.Texture2D,
+	texture:  	 Texture_Name,
 	position:    [2]int,
 	layer:       int, // 1 or 2
 	priority:    int, // from 0
@@ -173,33 +160,33 @@ Player :: struct {
 
 player := Player{}
 setup_player :: proc(en: ^Entity) {
-	en.texture = load_texture(TEXTURE_PATH + "duck.png")
+	en.texture = .Duck
 	en.type = .Player
 	en.position = {1, 1}
 	en.priority = 3
 }
 
 setup_cargo :: proc(en: ^Entity) {
-	en.texture = load_texture(TEXTURE_PATH + "cargo.png")
+	en.texture = .Cargo
 	en.type = .Cargo
 	en.priority = 3
 }
 
 setup_wall :: proc(en: ^Entity) {
-	en.texture = load_texture(TEXTURE_PATH + "wall.png")
+	en.texture = .Wall
 	en.type = .Wall
 	en.priority = 3
 }
 
 setup_flag :: proc(en: ^Entity) {
-	en.texture = load_texture(TEXTURE_PATH + "flag_no.png")
+	en.texture = .Flag_No
 	en.type = .Flag
 	en.priority = 2
 	en.can_overlap = true
 }
 
 setup_target :: proc(en: ^Entity) {
-	en.texture = load_texture(TEXTURE_PATH + "target.png")
+	en.texture = .Target
 	en.type = .Target
 	en.priority = 2
 	en.can_overlap = true
@@ -351,13 +338,14 @@ draw :: proc() {
 		for &entity in level.layer_2.entities {
 			if entity.type == .Flag {
 				if is_completed {
-					entity.texture = load_texture(TEXTURE_PATH + "flag_ok.png")
+					entity.texture = .Flag_Ok
 				} else {
-					entity.texture = load_texture(TEXTURE_PATH + "flag_no.png")
+					entity.texture = .Flag_No
 				}
 			}
-			rl.DrawTextureV(
-				entity.texture,
+			rl.DrawTextureRec(
+				atlas,
+				atlas_textures[entity.texture].rect,
 				rl.Vector2{f32(entity.position.x * GRID_SIZE), f32(entity.position.y * GRID_SIZE)},
 				rl.Color{255, 255, 255, HALF_ALPHA_VALUE},
 			)
@@ -368,13 +356,14 @@ draw :: proc() {
 		for &entity in level.layer_1.entities {
 			if entity.type == .Flag {
 				if is_completed {
-					entity.texture = load_texture(TEXTURE_PATH + "flag_ok.png")
+					entity.texture = .Flag_Ok
 				} else {
-					entity.texture = load_texture(TEXTURE_PATH + "flag_no.png")
+					entity.texture = .Flag_No
 				}
 			}
-			rl.DrawTextureV(
-				entity.texture,
+			rl.DrawTextureRec(
+				atlas,
+				atlas_textures[entity.texture].rect,
 				rl.Vector2{f32(entity.position.x * GRID_SIZE), f32(entity.position.y * GRID_SIZE)},
 				rl.Color{255, 255, 255, HALF_ALPHA_VALUE},
 			)
@@ -382,86 +371,70 @@ draw :: proc() {
 	}
 
 	// draw player
-	if !player.is_flipped {
-		rl.DrawTexturePro(
-			player.texture,
-			rl.Rectangle {
-				0,
-				0,
-				f32(player.texture.width),
-				f32(player.texture.height),
-			},
-			rl.Rectangle {
-				f32(player.position.x * GRID_SIZE),
-				f32(player.position.y * GRID_SIZE),
-				f32(player.texture.width),
-				f32(player.texture.height),
-			},
-			rl.Vector2(0),
-			0,
-			rl.WHITE,
-		)
-	} else {
-		rl.DrawTexturePro(
-			player.texture,
-			rl.Rectangle {
-				0,
-				0,
-				-f32(player.texture.width),
-				f32(player.texture.height),
-			},
-			rl.Rectangle {
-				f32(player.position.x * GRID_SIZE),
-				f32(player.position.y * GRID_SIZE),
-				f32(player.texture.width),
-				f32(player.texture.height),
-			},
-			rl.Vector2(0),
-			0,
-			rl.WHITE,
-		)
+	player_rect := atlas_textures[player.texture].rect
+	source := player_rect
+	if player.is_flipped {
+		source.width = -source.width
 	}
+	rl.DrawTexturePro(
+		atlas,
+		source,
+		rl.Rectangle {
+			f32(player.position.x * GRID_SIZE),
+			f32(player.position.y * GRID_SIZE),
+			player_rect.width,
+			player_rect.height,
+		},
+		rl.Vector2(0),
+		0,
+		rl.WHITE,
+	)
 
 	// draw text and ui
 	// :ui texture positions
 	rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 22, 1.2, MY_BLACK)
 	rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 42}, 22, 1.2, MY_BLACK)
-	rl.DrawTextureV(
-		load_texture(TEXTURE_PATH + "chain.png"),
+	rl.DrawTextureRec(
+		atlas,
+		atlas_textures[.Chain].rect,
 		rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 28},
 		rl.Color{255, 255, 255, 150},
 	)
 	if level.layer_1.is_visible {
-		rl.DrawTextureV(
-			load_texture(TEXTURE_PATH + "visible.png"),
+		rl.DrawTextureRec(
+			atlas,
+			atlas_textures[.Visible].rect,
 			rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y - 13},
 			rl.WHITE,
 		)
 	} else {
-		rl.DrawTextureV(
-			load_texture(TEXTURE_PATH + "invisible.png"),
+		rl.DrawTextureRec(
+			atlas,
+			atlas_textures[.Invisible].rect,
 			rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y - 13},
 			rl.WHITE,
 		)
 	}
 	if level.layer_2.is_visible {
-		rl.DrawTextureV(
-			load_texture(TEXTURE_PATH + "visible.png"),
+		rl.DrawTextureRec(
+			atlas,
+			atlas_textures[.Visible].rect,
 			rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 13},
 			rl.WHITE,
 		)
 	} else {
-		rl.DrawTextureV(
-			load_texture(TEXTURE_PATH + "invisible.png"),
+		rl.DrawTextureRec(
+			atlas,
+			atlas_textures[.Invisible].rect,
 			rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 13},
 			rl.WHITE,
 		)
 	}
 
 	height :: 420
-	rl.DrawTexture(load_texture(TEXTURE_PATH + "move.png"), 645, height, rl.WHITE)
-	rl.DrawTexture(load_texture(TEXTURE_PATH + "undo.png"), 645, height + 110, rl.WHITE)
-	rl.DrawTexture(load_texture(TEXTURE_PATH + "reset.png"), 645 + 64, height + 110, rl.WHITE)
+	rl.DrawTextureRec(atlas, atlas_textures[.Move].rect, rl.Vector2{645, height}, rl.WHITE)
+	rl.DrawTextureRec(atlas, atlas_textures[.Undo].rect, rl.Vector2{645, height + 110}, rl.WHITE)
+	rl.DrawTextureRec(atlas, atlas_textures[.Reset].rect, rl.Vector2{645 + 64, height + 110}, rl.WHITE)
 	rl.DrawTextEx(font, "by cmd", rl.Vector2{665, 606}, 32, 1.2, MY_BLACK)
 	if should_show_tip {
 		show_tip(
@@ -495,6 +468,8 @@ get_move_input :: proc() {
 // :init
 game_init :: proc() {
 	// load assets
+	atlas = rl.LoadTexture("assets/atlas.png")
+	rl.SetTextureFilter(atlas, rl.TextureFilter.POINT)
 	icon = rl.LoadImage("assets/icon.png")
 	rl.SetWindowIcon(icon)
 	font = rl.LoadFont("assets/fonts/PixelifySans-Regular.ttf")
@@ -515,20 +490,20 @@ game_init :: proc() {
 
 // :ui bounds positions
 init_ui_bounds :: proc() {
-	visible := load_texture(TEXTURE_PATH + "visible.png")
+	visible := atlas_textures[.Visible].rect
 
 	eyeball_1_bounds = rl.Rectangle {
 		630,
 		1,
-		f32(visible.width),
-		f32(visible.height / 2),
+		visible.width,
+		visible.height / 2,
 	}
 
 	eyeball_2_bounds = rl.Rectangle {
 		630,
 		33,
-		f32(visible.width),
-		f32(visible.height / 2),
+		visible.width,
+		visible.height / 2,
 	}
 }
 

@@ -78,51 +78,21 @@ Entity_Type :: enum u8 {
 // Target => '*'
 // Flag => '>'
 
-TextureID :: enum {
-	TEXTURE_none,
-	TEXTURE_player,
-	TEXTURE_cargo,
-	TEXTURE_wall,
-	TEXTURE_target,
-	TEXTURE_flag_ok,
-	TEXTURE_flag_no,
-	TEXTURE_visible,
-	TEXTURE_invisible,
-	TEXTURE_move,
-	TEXTURE_reset,
-	TEXTURE_undo,
-	TEXTURE_humanmade,
-	TEXTURE_chain,
-}
+textures: map[string]rl.Texture
+TEXTURE_PATH :: "assets/textures/"
 
-textures: [TextureID]rl.Texture2D
-
-get_texture :: proc(id: TextureID) -> rl.Texture2D {
-	if id >= .TEXTURE_none {
-		return textures[id]
+load_texture :: proc(path: string) -> rl.Texture {
+	if t, t_ok := textures[path]; t_ok {
+		return t
 	}
-	return textures[.TEXTURE_none]
-}
 
-get_texture_id_from_type :: proc(type: Entity_Type) -> TextureID {
-	switch type {
-	case .Player:
-		return .TEXTURE_player
-	case .Cargo:
-		return .TEXTURE_cargo
-	case .Wall:
-		return .TEXTURE_wall
-	case .Target:
-		return .TEXTURE_target
-	case .Flag:
-		if is_completed {
-			return .TEXTURE_flag_ok
-		} else {
-			return .TEXTURE_flag_no
-		}
-	case:
-		return .TEXTURE_none
+	t := rl.LoadTexture(strings.clone_to_cstring(path, context.temp_allocator))
+
+	if t.id != 0 {
+		textures[path] = t
 	}
+
+	return t
 }
 
 icon: rl.Image
@@ -189,7 +159,7 @@ input: Input
 
 Entity :: struct {
 	type:        Entity_Type,
-	texture_id:  TextureID,
+	texture:  	 rl.Texture2D,
 	position:    [2]int,
 	layer:       int, // 1 or 2
 	priority:    int, // from 0
@@ -203,33 +173,33 @@ Player :: struct {
 
 player := Player{}
 setup_player :: proc(en: ^Entity) {
-	en.texture_id = .TEXTURE_player
+	en.texture = load_texture(TEXTURE_PATH + "duck.png")
 	en.type = .Player
 	en.position = {1, 1}
 	en.priority = 3
 }
 
 setup_cargo :: proc(en: ^Entity) {
-	en.texture_id = .TEXTURE_cargo
+	en.texture = load_texture(TEXTURE_PATH + "cargo.png")
 	en.type = .Cargo
 	en.priority = 3
 }
 
 setup_wall :: proc(en: ^Entity) {
-	en.texture_id = .TEXTURE_wall
+	en.texture = load_texture(TEXTURE_PATH + "wall.png")
 	en.type = .Wall
 	en.priority = 3
 }
 
 setup_flag :: proc(en: ^Entity) {
-	en.texture_id = .TEXTURE_flag_no
+	en.texture = load_texture(TEXTURE_PATH + "flag_no.png")
 	en.type = .Flag
 	en.priority = 2
 	en.can_overlap = true
 }
 
 setup_target :: proc(en: ^Entity) {
-	en.texture_id = .TEXTURE_target
+	en.texture = load_texture(TEXTURE_PATH + "target.png")
 	en.type = .Target
 	en.priority = 2
 	en.can_overlap = true
@@ -381,13 +351,13 @@ draw :: proc() {
 		for &entity in level.layer_2.entities {
 			if entity.type == .Flag {
 				if is_completed {
-					entity.texture_id = .TEXTURE_flag_ok
+					entity.texture = load_texture(TEXTURE_PATH + "flag_ok.png")
 				} else {
-					entity.texture_id = .TEXTURE_flag_no
+					entity.texture = load_texture(TEXTURE_PATH + "flag_no.png")
 				}
 			}
 			rl.DrawTextureV(
-				textures[entity.texture_id],
+				entity.texture,
 				rl.Vector2{f32(entity.position.x * GRID_SIZE), f32(entity.position.y * GRID_SIZE)},
 				rl.Color{255, 255, 255, HALF_ALPHA_VALUE},
 			)
@@ -398,13 +368,13 @@ draw :: proc() {
 		for &entity in level.layer_1.entities {
 			if entity.type == .Flag {
 				if is_completed {
-					entity.texture_id = .TEXTURE_flag_ok
+					entity.texture = load_texture(TEXTURE_PATH + "flag_ok.png")
 				} else {
-					entity.texture_id = .TEXTURE_flag_no
+					entity.texture = load_texture(TEXTURE_PATH + "flag_no.png")
 				}
 			}
 			rl.DrawTextureV(
-				textures[entity.texture_id],
+				entity.texture,
 				rl.Vector2{f32(entity.position.x * GRID_SIZE), f32(entity.position.y * GRID_SIZE)},
 				rl.Color{255, 255, 255, HALF_ALPHA_VALUE},
 			)
@@ -414,18 +384,18 @@ draw :: proc() {
 	// draw player
 	if !player.is_flipped {
 		rl.DrawTexturePro(
-			textures[player.texture_id],
+			player.texture,
 			rl.Rectangle {
 				0,
 				0,
-				f32(textures[player.texture_id].width),
-				f32(textures[player.texture_id].height),
+				f32(player.texture.width),
+				f32(player.texture.height),
 			},
 			rl.Rectangle {
 				f32(player.position.x * GRID_SIZE),
 				f32(player.position.y * GRID_SIZE),
-				f32(textures[player.texture_id].width),
-				f32(textures[player.texture_id].height),
+				f32(player.texture.width),
+				f32(player.texture.height),
 			},
 			rl.Vector2(0),
 			0,
@@ -433,18 +403,18 @@ draw :: proc() {
 		)
 	} else {
 		rl.DrawTexturePro(
-			textures[player.texture_id],
+			player.texture,
 			rl.Rectangle {
 				0,
 				0,
-				-f32(textures[player.texture_id].width),
-				f32(textures[player.texture_id].height),
+				-f32(player.texture.width),
+				f32(player.texture.height),
 			},
 			rl.Rectangle {
 				f32(player.position.x * GRID_SIZE),
 				f32(player.position.y * GRID_SIZE),
-				f32(textures[player.texture_id].width),
-				f32(textures[player.texture_id].height),
+				f32(player.texture.width),
+				f32(player.texture.height),
 			},
 			rl.Vector2(0),
 			0,
@@ -457,41 +427,41 @@ draw :: proc() {
 	rl.DrawTextEx(font, "Layer 1", rl.Vector2{690, 10}, 22, 1.2, MY_BLACK)
 	rl.DrawTextEx(font, "Layer 2", rl.Vector2{690, 42}, 22, 1.2, MY_BLACK)
 	rl.DrawTextureV(
-		textures[.TEXTURE_chain],
+		load_texture(TEXTURE_PATH + "chain.png"),
 		rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 28},
 		rl.Color{255, 255, 255, 150},
 	)
 	if level.layer_1.is_visible {
 		rl.DrawTextureV(
-			textures[.TEXTURE_visible],
+			load_texture(TEXTURE_PATH + "visible.png"),
 			rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y - 13},
 			rl.WHITE,
 		)
 	} else {
 		rl.DrawTextureV(
-			textures[.TEXTURE_invisible],
+			load_texture(TEXTURE_PATH + "invisible.png"),
 			rl.Vector2{eyeball_1_bounds.x, eyeball_1_bounds.y - 13},
 			rl.WHITE,
 		)
 	}
 	if level.layer_2.is_visible {
 		rl.DrawTextureV(
-			textures[.TEXTURE_visible],
+			load_texture(TEXTURE_PATH + "visible.png"),
 			rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 13},
 			rl.WHITE,
 		)
 	} else {
 		rl.DrawTextureV(
-			textures[.TEXTURE_invisible],
+			load_texture(TEXTURE_PATH + "invisible.png"),
 			rl.Vector2{eyeball_2_bounds.x, eyeball_2_bounds.y - 13},
 			rl.WHITE,
 		)
 	}
 
 	height :: 420
-	rl.DrawTexture(textures[.TEXTURE_move], 645, height, rl.WHITE)
-	rl.DrawTexture(textures[.TEXTURE_undo], 645, height + 110, rl.WHITE)
-	rl.DrawTexture(textures[.TEXTURE_reset], 645 + 64, height + 110, rl.WHITE)
+	rl.DrawTexture(load_texture(TEXTURE_PATH + "move.png"), 645, height, rl.WHITE)
+	rl.DrawTexture(load_texture(TEXTURE_PATH + "undo.png"), 645, height + 110, rl.WHITE)
+	rl.DrawTexture(load_texture(TEXTURE_PATH + "reset.png"), 645 + 64, height + 110, rl.WHITE)
 	rl.DrawTextEx(font, "by cmd", rl.Vector2{665, 606}, 32, 1.2, MY_BLACK)
 	if should_show_tip {
 		show_tip(
@@ -528,19 +498,6 @@ game_init :: proc() {
 	icon = rl.LoadImage("assets/icon.png")
 	rl.SetWindowIcon(icon)
 	font = rl.LoadFont("assets/fonts/PixelifySans-Regular.ttf")
-	textures[.TEXTURE_player] = rl.LoadTexture("assets/textures/duck.png")
-	textures[.TEXTURE_cargo] = rl.LoadTexture("assets/textures/cargo.png")
-	textures[.TEXTURE_wall] = rl.LoadTexture("assets/textures/wall.png")
-	textures[.TEXTURE_flag_ok] = rl.LoadTexture("assets/textures/flag_ok.png")
-	textures[.TEXTURE_flag_no] = rl.LoadTexture("assets/textures/flag_no.png")
-	textures[.TEXTURE_target] = rl.LoadTexture("assets/textures/target.png")
-	textures[.TEXTURE_visible] = rl.LoadTexture("assets/textures/visible.png")
-	textures[.TEXTURE_invisible] = rl.LoadTexture("assets/textures/invisible.png")
-	textures[.TEXTURE_move] = rl.LoadTexture("assets/textures/move.png")
-	textures[.TEXTURE_reset] = rl.LoadTexture("assets/textures/reset.png")
-	textures[.TEXTURE_undo] = rl.LoadTexture("assets/textures/undo.png")
-	textures[.TEXTURE_humanmade] = rl.LoadTexture("assets/textures/88x31-light.png")
-	textures[.TEXTURE_chain] = rl.LoadTexture("assets/textures/chain.png")
 
 	bgm = rl.LoadMusicStream("assets/audio/bgm.wav")
 	sfx_footstep = rl.LoadSound("assets/audio/footstep.ogg")
@@ -558,18 +515,20 @@ game_init :: proc() {
 
 // :ui bounds positions
 init_ui_bounds :: proc() {
+	visible := load_texture(TEXTURE_PATH + "visible.png")
+
 	eyeball_1_bounds = rl.Rectangle {
 		630,
 		1,
-		f32(textures[.TEXTURE_visible].width),
-		f32(textures[.TEXTURE_visible].height / 2),
+		f32(visible.width),
+		f32(visible.height / 2),
 	}
 
 	eyeball_2_bounds = rl.Rectangle {
 		630,
 		33,
-		f32(textures[.TEXTURE_visible].width),
-		f32(textures[.TEXTURE_visible].height / 2),
+		f32(visible.width),
+		f32(visible.height / 2),
 	}
 }
 

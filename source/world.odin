@@ -16,6 +16,7 @@ Entity_Type :: enum u8 {
 	Wall,
 	Target,
 	Flag,
+	Wormhole,
 }
 // Level Editor Symbols
 // Player => '@'
@@ -23,6 +24,7 @@ Entity_Type :: enum u8 {
 // Wall => '#'
 // Target => '*'
 // Flag => '>'
+// Wormhole => 'O'
 
 Layer :: struct {
 	is_visible: bool,
@@ -84,6 +86,13 @@ setup_target :: proc(en: ^Entity) {
 	en.texture = .Target
 	en.type = .Target
 	en.priority = 2
+	en.can_overlap = true
+}
+
+setup_wormhole :: proc(en: ^Entity) {
+	en.texture = .Wormhole
+	en.type = .Wormhole
+	en.priority = 3
 	en.can_overlap = true
 }
 

@@ -62,6 +62,8 @@ level_load_layer_from_txt :: proc(layer_index: int, content: string) {
 			setup_target(en)
 		case '>':
 			setup_flag(en)
+		case 'O':
+			setup_wormhole(en)
 		case:
 			continue
 		}

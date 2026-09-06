@@ -131,7 +131,7 @@ init :: proc() {
 	} else {
 		rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
 	}
-	rl.InitWindow(GAME_SCREEN_WIDTH * RATIO, GAME_SCREEN_HEIGHT * RATIO, "Layers")
+	rl.InitWindow(GAME_SCREEN_WIDTH * RATIO, GAME_SCREEN_HEIGHT * RATIO, "Multidimensional Duck")
 	rl.InitAudioDevice()
 
 	// Render texture initialization, used to hold the rendering result so we can easily resize it

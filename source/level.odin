@@ -3,6 +3,7 @@ package game
 import "core:fmt"
 import "core:log"
 import "core:strings"
+import hm "core:container/handle_map"
 
 level_load_from_txt :: proc(index: int) -> bool {
 	add_player()
@@ -48,44 +49,41 @@ level_load_layer_from_txt :: proc(layer_index: int, content: string) {
 			x += 1
 		}
 
-		en := new(Entity, context.temp_allocator)
-		en.position = {x, y}
-		en.layer = layer_index
+		en := Entity{position = {x, y}, layer = layer_index}
 		switch char {
 		case '@':
-			setup_player(en)
+			setup_player(&en)
 		case 'C':
-			setup_cargo(en)
+			setup_cargo(&en)
 		case '#':
-			setup_wall(en)
+			setup_wall(&en)
 		case '*':
-			setup_target(en)
+			setup_target(&en)
 		case '>':
-			setup_flag(en)
+			setup_flag(&en)
 		case 'O':
-			setup_wormhole(en)
+			setup_wormhole(&en)
 		case:
 			continue
 		}
-		append(&world.entities, en^)
+		_ = hm.add(&world.entities, en)
 	}
 }
 
 add_player :: proc() {
 	en: Entity
 	setup_player(&en)
-	append(&world.entities, en)
+	_ = hm.add(&world.entities, en)
 }
 
 level_unload :: proc() {
-	clear(&world.entities)
+	hm.clear(&world.entities)
 	clear(&undo_stack)
 
 	is_completed = false
 }
 
 unload_game :: proc() {
-	delete(world.entities)
 	delete(world.layers)
 	delete(undo_stack)
 }

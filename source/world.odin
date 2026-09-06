@@ -2,6 +2,9 @@ package game
 
 import "core:log"
 import rl "vendor:raylib"
+import hm "core:container/handle_map"
+
+Entity_Handle :: distinct hm.Handle32
 
 // Number of layers per level. Increase this and add a matching
 // `assets/levels/{n}-l{layer}.txt` file to add more layers.
@@ -32,27 +35,24 @@ Layer :: struct {
 }
 
 World :: struct {
-	entities: [dynamic]Entity,
+	entities: hm.Static_Handle_Map(MAX_ENTITIES_COUNT, Entity, Entity_Handle),
 	layers:   [dynamic]Layer,
 }
 
 Entity :: struct {
-	type:        Entity_Type,
-	texture:     Texture_Name,
-	position:    [2]int,
-	layer:       int, // index into world.layers, or NO_LAYER
-	priority:    int, // start from 0
-	can_overlap: bool,
-	is_flipped:  bool,
+	handle:         Entity_Handle,
+	type:           Entity_Type,
+	texture:        Texture_Name,
+	position:       [2]int,
+	layer:          int, // index into world.layers, or NO_LAYER
+	priority:       int, // start from 0
+	can_overlap:    bool,
+	is_flipped:     bool,
 	is_in_wormhole: bool,
 }
 
 Record :: struct {
 	world: World,
-}
-
-add_entity :: proc(w: ^World, e: Entity) {
-	append(&w.entities, e)
 }
 
 setup_player :: proc(en: ^Entity) {
@@ -108,8 +108,7 @@ clone_world :: proc(w: ^World) -> World {
 	nw: World
 	nw.layers = make([dynamic]Layer, len(w.layers), arena_allocator)
 	copy(nw.layers[:], w.layers[:])
-	nw.entities = make([dynamic]Entity, len(w.entities), arena_allocator)
-	copy(nw.entities[:], w.entities[:])
+	nw.entities = w.entities
 	return nw
 }
 
@@ -200,9 +199,10 @@ update_position :: proc(en: ^Entity, target_pos: [2]int, box: ^Entity) {
 }
 
 find_player :: proc() -> ^Entity {
-	for &en in world.entities {
+	it := hm.iterator_make(&world.entities)
+	for en, _ in hm.iterate(&it) {
 		if en.type == .Player {
-			return &en
+			return en
 		}
 	}
 	return nil
@@ -211,8 +211,9 @@ find_player :: proc() -> ^Entity {
 // All entities on active layers at `pos`, excluding `self` (pass nil to keep all).
 find_entities_at :: proc(pos: [2]int, self: ^Entity) -> [dynamic]^Entity {
 	result := make([dynamic]^Entity, 0, context.temp_allocator)
-	for &en in world.entities {
-		if self != nil && &en == self {
+	it := hm.iterator_make(&world.entities)
+	for en, _ in hm.iterate(&it) {
+		if self != nil && en == self {
 			continue
 		}
 		if en.position != pos {
@@ -221,7 +222,7 @@ find_entities_at :: proc(pos: [2]int, self: ^Entity) -> [dynamic]^Entity {
 		if !layer_is_active(en.layer) {
 			continue
 		}
-		append(&result, &en)
+		append(&result, en)
 	}
 	return result
 }
@@ -229,8 +230,9 @@ find_entities_at :: proc(pos: [2]int, self: ^Entity) -> [dynamic]^Entity {
 // Non-overlapping (solid) entities on active layers at `pos`, excluding `self`.
 find_blocking_entities_at :: proc(pos: [2]int, self: ^Entity) -> [dynamic]^Entity {
 	result := make([dynamic]^Entity, 0, context.temp_allocator)
-	for &en in world.entities {
-		if self != nil && &en == self {
+	it := hm.iterator_make(&world.entities)
+	for en, _ in hm.iterate(&it) {
+		if self != nil && en == self {
 			continue
 		}
 		if en.position != pos {
@@ -242,13 +244,14 @@ find_blocking_entities_at :: proc(pos: [2]int, self: ^Entity) -> [dynamic]^Entit
 		if !layer_is_active(en.layer) {
 			continue
 		}
-		append(&result, &en)
+		append(&result, en)
 	}
 	return result
 }
 
 check_completion :: proc() -> bool {
-	for &en in world.entities {
+	it := hm.iterator_make(&world.entities)
+	for en, _ in hm.iterate(&it) {
 		if en.type != .Target {
 			continue
 		}

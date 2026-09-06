@@ -3,6 +3,7 @@ package game
 import "core:fmt"
 import "core:slice"
 import rl "vendor:raylib"
+import hm "core:container/handle_map"
 
 entity_draw_order :: proc(en: ^Entity) -> int {
 	if en.layer < 0 {
@@ -73,11 +74,12 @@ draw :: proc() {
 
 	// draw all entities in one pass, ordered by layer
 	visible_entities := make([dynamic]^Entity, 0, context.temp_allocator)
-	for &en in world.entities {
+	it := hm.iterator_make(&world.entities)
+	for en, _ in hm.iterate(&it) {
 		if !layer_is_active(en.layer) {
 			continue
 		}
-		append(&visible_entities, &en)
+		append(&visible_entities, en)
 	}
 	slice.stable_sort_by(visible_entities[:], proc(a, b: ^Entity) -> bool {
 		return entity_draw_order(a) < entity_draw_order(b)
@@ -149,11 +151,12 @@ congratulations :: proc() {
 // player's live position. Toggled with Tab.
 visible_entities_sorted :: proc() -> [dynamic]^Entity {
 	result := make([dynamic]^Entity, 0, context.temp_allocator)
-	for &en in world.entities {
+	it := hm.iterator_make(&world.entities)
+	for en, _ in hm.iterate(&it) {
 		if !layer_is_active(en.layer) {
 			continue
 		}
-		append(&result, &en)
+		append(&result, en)
 	}
 	slice.stable_sort_by(result[:], proc(a, b: ^Entity) -> bool {
 		return entity_draw_order(a) < entity_draw_order(b)
@@ -163,9 +166,10 @@ visible_entities_sorted :: proc() -> [dynamic]^Entity {
 
 entities_on_layer :: proc(layer: int) -> [dynamic]^Entity {
 	result := make([dynamic]^Entity, 0, context.temp_allocator)
-	for &en in world.entities {
+	it := hm.iterator_make(&world.entities)
+	for en, _ in hm.iterate(&it) {
 		if en.layer == layer {
-			append(&result, &en)
+			append(&result, en)
 		}
 	}
 	return result

@@ -44,6 +44,7 @@ Entity :: struct {
 	priority:    int, // start from 0
 	can_overlap: bool,
 	is_flipped:  bool,
+	is_in_wormhole: bool,
 }
 
 Record :: struct {

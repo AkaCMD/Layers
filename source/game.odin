@@ -353,6 +353,13 @@ game_update :: proc() {
 		undo()
 	}
 
+	if rl.IsKeyPressed(.KP_1) {
+		toggle_layer_visibility(0)
+	}
+	if rl.IsKeyDown(.KP_2) {
+		toggle_layer_visibility(1)
+	}
+
 	//  [] to switch level for test
 	if rl.IsKeyPressed(.LEFT_BRACKET) {
 		level_load_by_index(current_level_index - 1)
